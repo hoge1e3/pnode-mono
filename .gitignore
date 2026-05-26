@@ -1,0 +1,7 @@
+node_modules
+.gsync
+.tsbuildinfo
+idb
+pnode-bootloader
+gsync
+wptest

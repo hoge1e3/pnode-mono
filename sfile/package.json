@@ -1,0 +1,40 @@
+{
+  "name": "@hoge1e3/sfile",
+  "version": "2.0.1",
+  "description": "node.js fs Comprehensive File Wrapper",
+  "main": "./src/SFile.js",
+  "types": "./src/SFile.d.ts",
+  "type": "module",
+  "scripts": {
+    "tsc": "npx tsc",
+    "webpack": "echo no-webpack-needed",
+    "webpack-dev": "echo no-webpack-needed",
+    "test": "npm run tsc && node test/test.js && node test/test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoge1e3/SFile.git"
+  },
+  "keywords": [
+    "filesystem",
+    "fs",
+    "wrapper",
+    "oo"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hoge1e3/SFile/issues"
+  },
+  "homepage": "https://github.com/hoge1e3/SFile#readme",
+  "dependencies": {
+    "@hoge1e3/content": "^2.0.1"
+  },
+  "files": [
+    "src"
+  ],
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "typescript": "^5.8.3"
+  }
+}

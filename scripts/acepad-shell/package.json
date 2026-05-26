@@ -1,0 +1,21 @@
+{
+  "name": "acepad-shell",
+  "version": "1.0.0",
+  "description": "acepad-like shell in regular node.js",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "apsh": "index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@hoge1e3/is-plain-object": "^1.0.0",
+    "@hoge1e3/sfile": "^2.0.1",
+    "@hoge1e3/sfile-node": "^1.5.2"
+  }
+}

@@ -1,0 +1,13 @@
+{
+    "short_name": "WebCartridge",
+    "name": "Web Cartridge",
+    "display": "fullscreen",
+    "start_url": "./index.html",
+    "icons": [
+        {
+            "src": "image/192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        }
+    ]
+}

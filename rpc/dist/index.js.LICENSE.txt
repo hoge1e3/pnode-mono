@@ -1,0 +1,2 @@
+/*!(this.receiver instanceof Worker) &&
+            typeof (this.receiver as any).importScripts!=="function" ) {*/

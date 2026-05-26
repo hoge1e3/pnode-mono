@@ -1,0 +1,7 @@
+{
+    "menus": {
+        "sample": {
+            "main": "./sample.js"
+        }
+    }
+}

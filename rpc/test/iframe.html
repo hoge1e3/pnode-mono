@@ -1,0 +1,27 @@
+<script src="../dist/index.umd.js">
+</script>
+<h1>Iframe</h1>
+<script>
+const ORIGIN="http://127.0.0.1:8080";
+const ifrmserv=new rpc.Server("ifrmserv",[ORIGIN]);
+ifrmserv.serv("test",({x})=>x*2);
+ifrmserv.serv("prt",({m})=>prt(m));
+console.log("serv",ifrmserv.channel);
+const ifrmprox=rpc.proxy.server("ifrmprox",[ORIGIN],{
+    test(x) {
+        return x*2;
+    },
+    prt,
+    get() {
+        return document.body.innerText;
+    }
+});
+console.log("serv",ifrmprox.channel);
+function prt(d) {
+    const e=document.createElement("div");
+    e.innerText=d;
+    document.body.appendChild(e);
+}
+const r=new rpc.Client(parent, "ifrmrev", ORIGIN);
+r.run("rtest",{args: ["Hello! from iframe."]});
+</script>

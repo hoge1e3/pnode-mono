@@ -1,0 +1,20 @@
+<body><h1>iframe peer</h1></body>
+<script type="module">
+import * as rpc from "../../dist/index.js";
+const p=rpc.proxy.peer({
+    target: parent,
+    channel: "default",
+    targetOrigin: "http://127.0.0.1:8080",
+    service:{
+        bar(x) {
+            console.log("bar",x);
+            p.foo(x+5);
+        },
+        baz(x){ 
+            document.body.innerHTML+="Result: "+x;
+        }
+    },
+});
+//p.bar(5);
+
+</script>

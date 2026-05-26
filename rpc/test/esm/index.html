@@ -1,0 +1,103 @@
+<body>
+
+</body>
+<script type="module">
+import * as rpc from "../../dist/index.js";
+const ORIGIN="http://localhost:8080";
+let buf="";
+function openIframe(){
+    return new Promise((s)=>{
+        const ifurl=ORIGIN+"/test/iframe.html";
+        const iframe=document.createElement("iframe");
+        iframe.addEventListener("load",()=>s(iframe));
+        iframe.setAttribute("src",ifurl);
+        document.body.appendChild(iframe);
+    });
+}
+async function testIframe() {
+    const iframe=await openIframe();
+    console.log("ifrm",iframe.contentWindow);
+    const ifrmserv=new rpc.Client(iframe.contentWindow, "ifrmserv", ORIGIN);
+    const r=await ifrmserv.run("test",{x:21});
+    prt("Result of ifrmserv.test = "+r);//42
+    await ifrmserv.run("prt",{m:`ifrmserv.test: Answer was ${r}`});
+    await new Promise((next)=>{
+        const reverse=new rpc.Server("ifrmrev", [ORIGIN]);
+        reverse.serv("rtest",({args})=>{
+            prt("From iframe: "+args);
+            next();
+        });
+    });
+    const ifrmprox=rpc.proxy.client(iframe.contentWindow, "ifrmprox", ORIGIN);
+    await ifrmprox.prt("from index.html, sent to proxy");
+    prt(await ifrmprox.get());
+    eq(buf,`Result of ifrmserv.test = 42
+From iframe: Hello! from iframe.
+Iframe
+ifrmserv.test: Answer was 42
+from index.html, sent to proxy`);
+
+    /*
+content of main page should be 
+    Result of ifrmserv.test = 42
+    From iframe: Hello! from iframe.
+content of iframe should be
+    ifrmserv.test: Answer was 42
+    from index.html, sent to proxy
+    */
+}
+function eq(a,b){
+    a=a.replace(/\s+/g," ").trim();
+    b=b.replace(/\s+/g," ").trim();
+    if (a!==b) {
+        console.log("actual::",JSON.stringify(a),a.length,a.charCodeAt(a.length-1));
+        console.log("expected",JSON.stringify(b),b.length,b.charCodeAt(b.length-1));
+        prt("TEST FAILED: Not match");
+    } else{
+        prt("Check ok");
+        buf="";
+    }
+}
+function prt(d) {
+    const e=document.createElement("div");
+    e.innerText=d;
+    buf+=d+"\n";
+    document.body.appendChild(e);
+}
+async function testWorker() {
+    const w=new Worker("worker.js",{type:"module"});
+    const wserv=new rpc.Client(w,"wserv");
+    const revw=new rpc.Server(w, "revw");
+    prt("wserv.test: "+await wserv.run("test",{x:30}));
+    await new Promise((next)=>{
+        revw.serv("rtest",({args})=>{
+            prt(`From worker: ${JSON.stringify(args)}`);next();
+        });
+        wserv.run("kickRev",{x:"Hello worker"});
+        console.log(revw);
+    });
+    //w.addEventListener("message",(e)=>console.log("W",e));
+    const wprox=rpc.proxy.client(w,"wprox");
+    prt("wprox.test: "+ await wprox.test(123));
+    eq(buf,`wserv.test: 3000
+From worker: ["Hello, I am worker. Received: ","Hello worker"]
+wprox.test: 24600`);
+    const ms=new MessageChannel();
+    ms.port2.onmessage=({data})=>{
+        prt("From message channel: "+data);
+    };
+    await wprox.channel(rpc.proxy.transfer(ms.port1));
+    eq(buf,"From message channel: returned message");
+      /*
+content of main page should be 
+    wserv.test: 3000
+    From worker: Hello, I am worker. Received: Hello worker
+    wprox.test: 24600
+    */
+}
+async function main(){
+    await testIframe();
+    await testWorker();
+}
+main();
+</script>

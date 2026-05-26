@@ -1,0 +1,7 @@
+node_modules/
+dist/
+built.js
+.sync
+
+js/
+.tsbuildinfo

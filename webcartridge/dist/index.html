@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=0" />
+<script>
+let alc=0;
+const alerts=(...a)=>{
+    alc++;
+    if (alc>=5) return;
+    return alert(...a);
+};
+window.addEventListener('error',err,true); 
+window.addEventListener('unhandledrejection',err,true); 
+function err (event) {
+  if(typeof errorCenter!=="undefined" && typeof errorCenter.reportEvent==="function") {
+    return errorCenter.reportEvent(event);
+  }
+    if (event.target.tagName === 'SCRIPT') {
+        alert('Script error:'+event.target.src);
+    }
+    if (event.error) {
+        const e=event.error;
+        console.error(e);
+        alerts(((e.message||"")+(e.stack||""))||e.toString());
+    } if (event.reason) {
+      console.log(event);
+      alerts(event.reason);
+    } else {
+        console.error(event);
+        alerts(event.message||event.toString());
+    }
+}
+</script>
+<link rel="manifest" href="./manifest.json"/>
+</head>
+<body>
+  <div id="file-icon">
+    WebCartridge, a "clean" Website.
+    <div class="menus"></div>
+    <div class="submenus" style="display: none;"></div>
+    <div class="modal-container" style="display: none;">
+      <div class="modal-dialog upload" style="display: none;">
+        <input type="file" class="file"/>
+        <a class="sample" href=""></a>
+      </div>
+      <div class="modal-dialog splash" style="display: none;">
+        Wait...
+      </div>
+    </div>
+  </div>
+  <script type="module">
+const src=`./index.js`;
+import(src);
+  </script>
+</body>
+<!--
+npx http-server -o dist/wcart.html 
+-->
+</html>

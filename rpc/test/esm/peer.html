@@ -1,0 +1,18 @@
+<iframe src="http://localhost:8080/test/esm/peer_iframe.html"></iframe>
+<script type="module">
+const iframe=document.querySelector("iframe");
+import * as rpc from "../../dist/index.js";
+const p=rpc.proxy.peer({
+    target: iframe.contentWindow,
+    channel: "default",
+    targetOrigin: "http://localhost:8080",
+    service:{
+        foo(x) {
+            console.log("foo",x);
+            p.baz(x*2);
+        },
+    },
+});
+p.bar(3);
+
+</script>

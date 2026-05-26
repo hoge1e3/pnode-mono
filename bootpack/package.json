@@ -1,0 +1,27 @@
+{
+  "name": "pnode-bootloader",
+  "version": "2.0.1",
+  "main": "./js/main.js",
+  "scripts": {
+    "tsc": "echo no tsc needed",
+    "webpack-dev": "npx webpack",
+    "build-dev": "npm run tsc && npm run webpack-dev",
+    "gio": "cd .. && npm run gio"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "description": "",
+  "dependencies": {
+    "@hoge1e3/sfile": "^2.0.1",
+    "@hoge1e3/rpc": "^2.0.1",
+    "petit-node": "^2.0.1",
+    "mutable-promise": "^1.1.15"
+  },
+  "devDependencies": {
+    "css-loader": "^7.1.2",
+    "style-loader": "^4.0.0",
+    "webpack-ignore-dynamic-require": "^1.0.0"
+  }
+}

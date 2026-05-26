@@ -1,0 +1,36 @@
+<!--script src="../dist/index.js"></script>
+<script src="setup.js"></script-->
+<script type="module">
+import {main,prt,checkPrt,sleep} from "./setup.js";
+globalThis.prt=prt;
+const fixture={
+    "main.js": `
+import {urlToFile} from "pnode:main";
+console.log("Hello, petit-node!");
+let home=urlToFile(import.meta.url).up();
+document.body.innerHTML=home.rel("main.html").text();
+`,
+    "main.html": `
+<h1>petit-node examples</h1>
+<ul>
+    <li><a href="esm.html">Import ES Module</a></li>
+    <li><a href="cjs.html">Import CommonJS Module</a></li>
+    <li><a href="node_modules.html">Import node_modules</a></li>
+    <li><a href="parse_error.html">Parse Error Handling</li>
+    <li><a href="import_error.html">Import Error Handling</li>
+    <li><a href="import_error_builtin.html">Import Error Handling(For built-in modules)</li>
+    <li><a href="errors.html">Runtime Error Handling</li>
+    <li><a href="multiple.html">Multiple instance</li>
+    <li><a href="circular.html">ESM Circular dependency</li>
+    <li><a href="circular_default.html">ESM Circular dependency(default export)</li>
+    <li><a href="source-map.html">Source-map</li>
+    <li><a href="aliases.html">Using aliases</li>
+    <li><a href="cdn.html">Import from cdn</li>
+    <li><a href="upload.html">Upload Boot Image</li>
+</ul>
+`
+};
+await main(fixture);
+await sleep();
+checkPrt((c)=>c.includes("Import ES Module"));
+</script>

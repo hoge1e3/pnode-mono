@@ -1,0 +1,55 @@
+{
+  "type": "module",
+  "name": "petit-fs",
+  "version": "2.0.3",
+  "description": "node/fs compatible interface for browser, using localStorage.",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "scripts": {
+    "build-dev": "npm run tsc && npm run webpack-dev",
+    "tsc": "npx tsc",
+    "webpack-dev": "npx webpack --mode=development",
+    "webpack": "npx webpack --mode=production",
+    "test": "npx http-server -o test/index.html"
+  },
+  "files": [
+    "tsconfig.json",
+    "dist",
+    "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoge1e3/petit-fs.git"
+  },
+  "keywords": [
+    "filesystem"
+  ],
+  "author": "hoge1e3",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hoge1e3/petit-fs/issues"
+  },
+  "homepage": "https://github.com/hoge1e3/petit-fs#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.1.1",
+    "@hoge1e3/sfile": "^2.0.1",
+    "@types/chai": "^5.0.1",
+    "@types/escodegen": "^0.0.10",
+    "@types/espree": "^10.0.0",
+    "@types/stack-trace": "^0.0.33",
+    "@types/web": "^0.0.278",
+    "eslint": "^9.1.1",
+    "globals": "^15.0.0",
+    "jszip": "^3.10.1",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.8.3",
+    "webpack-cli": "^5.1.4",
+    "webpack-ignore-dynamic-require": "^1.0.0"
+  },
+  "dependencies": {
+    "@hoge1e3/assert": "^2.1.4",
+    "buffer": "^6.0.3",
+    "mutable-promise": "^1.1.15",
+    "sync-idb-kvs-multi": "^2.0.1"
+  }
+}

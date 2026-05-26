@@ -1,0 +1,10 @@
+node_modules
+src/MIMETypes.js
+src/SFile.js
+*.js.map
+test/test.js
+*.tgz
+src/MIMETypes.d.ts
+src/SFile.d.ts
+test/test.d.ts
+.tsbuildinfo

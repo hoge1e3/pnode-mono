@@ -1,0 +1,109 @@
+#file-icon {
+  position: absolute;
+  left:0;
+  top:0;
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  padding:0;
+  body {
+    font-family: sans-serif;
+    background: #f8f9fa;
+    margin: 0;
+    padding: 0;
+  }
+  #toolbar {
+    background: #eee;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+  }
+  #backButton {
+    margin-right: 12px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    background: white;
+    border-radius: 4px;
+  }
+  #fileArea {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+  
+  .item {
+    width: 80px;
+    margin: 5px;
+    text-align: center;
+    cursor: pointer;
+  }
+  .icon {
+    font-size: 48px;
+  }
+  .label {
+    font-size: 14px;
+    word-break: break-all;
+  }
+  .item.selected {
+    background: #cce5ff;
+    border: 2px solid #339af0;
+    border-radius: 6px;
+  }
+  
+  #menuBar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #eee;
+    padding: 8px;
+    display: none;
+    justify-content: center;
+    gap: 12px;
+    border-top: 1px solid #ccc;
+  }
+  #menuBar button {
+    padding: 6px 12px;
+    border: 1px solid #999;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+  }
+  .splashscreen-container {
+    position: absolute;
+    display: none;
+    pointer-events: none;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100vh;
+    /*display: flex;*/
+    justify-content: center;  /* 水平方向の中央寄せ */
+    align-items: center;      /* 垂直方向の中央寄せ */
+  }
+  
+  .splashscreen{
+    /* 中央配置する要素のスタイリング（例） */
+    padding: 10px;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+    text-align: center;
+    background: #eee;
+    border: 3px solid black;
+    z-index:300000;
+    font-size:30px;
+    animation-name: flash;
+    animation-duration: 1s;
+    animation-iteration-count: infinite;
+  }
+}
+  @keyframes flash {
+    from {
+      background: #ddd;
+    }
+    to {
+      background: #fff;
+    }
+  }
+

@@ -1,0 +1,55 @@
+{
+  "name": "pnode-ws",
+  "version": "2.0.3",
+  "main": "index.js",
+  "scripts": {
+    "publish": "node ./publish.mjs",
+    "sync": "node ./gitsync_all.mjs",
+    "verup": "npm login && node ./versionup.mjs && npm run publish",
+    "build": "npm run tsc --workspaces && npm run webpack --workspaces",
+    "build-dev": "npm run tsc --workspaces && npm run webpack-dev --workspaces",
+    "test": "cd petit-node && npm run test",
+    "ver-conflict": "node scripts/find-package-conflict.mjs",
+    "bootpack": "cd bootpack && npx webpack",
+    "gio": "node scripts/copy-to-gio.mjs",
+    "bio": "npm run build-dev && npm run gio",
+    "bootloader": "node server.mjs"
+  },
+  "private": true,
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "types": "src/index.d.ts",
+  "description": "",
+  "workspaces": [
+    "rpc",
+    "node-url",
+    "content",
+    "sync-idb-kvs",
+    "sync-idb-kvs-multi",
+    "petit-fs",
+    "sfile",
+    "fs2",
+    "petit-node",
+    "bootpack",
+    "webcartridge"
+  ],
+  "devDependencies": {
+    "@hoge1e3/is-plain-object": "^1.0.0",
+    "@hoge1e3/sfile": "^2.0.1",
+    "@hoge1e3/sfile-node": "^1.5.2",
+    "@types/web": "^0.0.278",
+    "madge": "^8.0.0"
+  },
+  "chromium-args": "--enable-logging=stderr",
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "constants-browserify": "^1.0.0",
+    "css-loader": "^7.1.2",
+    "express": "^5.1.0",
+    "querystring": "^0.2.1",
+    "style-loader": "^4.0.0",
+    "ws": "^8.18.3"
+  }
+}

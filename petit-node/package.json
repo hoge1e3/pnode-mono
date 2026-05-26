@@ -1,0 +1,61 @@
+{
+  "type": "module",
+  "name": "petit-node",
+  "version": "2.0.3",
+  "description": "Subset of node.js running in browser",
+  "main": "js/index.js",
+  "types": "js/index.d.ts",
+  "scripts": {
+    "tsc": "npx tsc",
+    "webpack-dev": "npx webpack --mode=development",
+    "webpack": "npx webpack --mode=production",
+    "build": "npx tsc && npx webpack",
+    "build-dev": "npx tsc && npm run webpack-dev",
+    "test": "npx http-server -o test/index.html"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoge1e3/petit-node.git"
+  },
+  "keywords": [
+    "node",
+    "browser",
+    "filesystem",
+    "npm"
+  ],
+  "author": "hoge1e3",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hoge1e3/petit-node/issues"
+  },
+  "homepage": "https://github.com/hoge1e3/petit-node#readme",
+  "dependencies": {
+    "@hoge1e3/assert": "^2.1.4",
+    "@hoge1e3/events": "^1.0.0",
+    "@hoge1e3/fs2": "^2.0.1",
+    "@hoge1e3/sfile": "^2.0.1",
+    "@hoge1e3/util": "^0.12.6",
+    "@types/chai": "^5.0.1",
+    "@types/file-saver": "^2.0.7",
+    "acorn-walk": "^8.3.2",
+    "chai": "^5.1.2",
+    "espree": "^10.0.1",
+    "mutable-promise": "^1.1.15",
+    "resolve.exports": "^2.0.3",
+    "@hoge1e3/url": "^1.6.3",
+    "util": "^0.12.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.1.1",
+    "@types/escodegen": "^0.0.10",
+    "@types/espree": "^10.0.0",
+    "@types/stack-trace": "^0.0.33",
+    "@types/web": "^0.0.278",
+    "eslint": "^9.1.1",
+    "globals": "^15.0.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.8.3",
+    "webpack-cli": "^5.1.4",
+    "webpack-ignore-dynamic-require": "^1.0.0"
+  }
+}

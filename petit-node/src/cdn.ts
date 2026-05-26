@@ -1,0 +1,65 @@
+import { IAliases, IBuiltinModuleEntry } from "../types/index.js";
+import { BuiltinModule } from "./alias.js";
+
+
+
+const g:any=globalThis;
+/*
+export function createCDNModule(e:INPMEntry, modval:ModuleValue) {
+    const name=e.name;
+    const url=e.url();
+    const module:CDNModule={
+        entry:e,
+        type:"CDN",
+        path: asCDNKey(name),
+        value:modval,
+        url,
+        dependencies:[],
+        shouldReload() {
+            return false;
+        },
+        shouldReloadLoop(path: Set<Module>) {
+            return false;
+        },
+        dispose(){}
+    }
+    return module;
+}*/
+export async function retryloadCDN(aliases:IAliases,e:IBuiltinModuleEntry){
+    return Object.assign(new Error(`Loading '${e.name}' from '${e.url()}'. Try again.`),{
+        retryPromise: loadCDN(aliases, e).catch(e=>console.error(e)),
+    });
+}
+export async function loadCDN(aliases:IAliases, e:IBuiltinModuleEntry):Promise<BuiltinModule> {
+    try {
+        return await _loadCDN(aliases, e);
+    } catch(err) {
+        aliases.invalidModules.add(e.cacheKey());
+        throw err;
+    }
+}
+async function _loadCDN(aliases:IAliases, e:IBuiltinModuleEntry):Promise<BuiltinModule> {
+    const name=e.name;
+    if (e.global) {
+        const globalName = e.global;
+        if (g[globalName]) {
+            return g[globalName];
+        }
+        const url = e.url();
+        await aliases.scriptingContext.importModule(url);
+        const modval = g[globalName];
+        if (!modval) {
+            throw new Error(
+                `Global variable "${globalName}" not found after loading '${name}'`
+            );
+        }
+        const module=new BuiltinModule(e.cacheKey(),modval,url);
+        aliases.cache.add(module);
+        return module;
+    }
+    const url = e.url();
+    const modval=await aliases.scriptingContext.importModule(url);
+    const module=new BuiltinModule(e.cacheKey(),modval,url);
+    aliases.cache.add(module);
+    return module;
+}

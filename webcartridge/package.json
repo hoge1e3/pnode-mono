@@ -1,0 +1,32 @@
+{
+  "name": "webcartridge",
+  "version": "1.0.0",
+  "description": "A 'clean' Website: The era of websites providing content is over. From now on, you should be the one provide your own content via 'Web Cartrige'.",
+  "keywords": [
+    "Serviceworker",
+    "webapp"
+  ],
+  "homepage": "https://github.com/hoge1e3/webcartridge#readme",
+  "bugs": {
+    "url": "https://github.com/hoge1e3/webcartridge/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoge1e3/webcartridge.git"
+  },
+  "license": "ISC",
+  "author": "hoge1e3",
+  "type": "module",
+  "main": "./js/main.js",
+  "scripts": {
+    "tsc": "npx tsc",
+    "webpack-dev": "npx webpack --mode=development",
+    "webpack": "npx webpack --mode=production",
+    "gio": "cd .. && npm run gio",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/web": "^0.0.278",
+    "typescript": "^5.8.3"
+  }
+}

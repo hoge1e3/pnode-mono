@@ -1,0 +1,45 @@
+{
+  "name": "@hoge1e3/url",
+  "description": "The core `url` packaged standalone for use with Browserify( added pathToFileURL ).",
+  "version": "1.6.4",
+  "author": "defunctzombie",
+  "dependencies": {
+    "punycode": "^2.3.1",
+    "qs": "^6.12.3"
+  },
+  "main": "./url.js",
+  "keywords": [
+    "parsing",
+    "url",
+    "analyze"
+  ],
+  "devDependencies": {
+    "@ljharb/eslint-config": "^21.1.1",
+    "acorn": "^8.12.1",
+    "aud": "^2.0.4",
+    "eslint": "^9.1.1",
+    "mocha": "^3.5.3",
+    "nyc": "^10.3.2",
+    "zuul": "^3.12.0"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "tests-only": "npx mocha",
+    "test": "nyc mocha",
+    "posttest": "aud --production",
+    "zuul": "zuul -- test/index.js",
+    "test-local": "zuul --local -- test/index.js",
+    "tsc": "echo no-tsc-needed",
+    "webpack": "echo no-webpack-needed",
+    "webpack-dev": "echo no-webpack-needed"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/defunctzombie/node-url.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">= 0.4"
+  }
+}
