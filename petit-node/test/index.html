@@ -13,26 +13,96 @@ document.body.innerHTML=home.rel("main.html").text();
     "main.html": `
 <h1>petit-node examples</h1>
 
-<iframe id="test" style="width: 50%; height:500px; float: right;"></iframe>
-<ul>
+<iframe id="test-frame" style="width: 100%; height:500px; border:1px solid #ccc;"></iframe>
+<div id="test-status" style="font-family:monospace; margin-top:8px;"></div>
+<ul id="test-list">
     <li><a href="esm.html">Import ES Module</a></li>
     <li><a href="cjs.html">Import CommonJS Module</a></li>
     <li><a href="node_modules.html">Import node_modules</a></li>
-    <li><a href="parse_error.html">Parse Error Handling</li>
-    <li><a href="import_error.html">Import Error Handling</li>
-    <li><a href="import_error_builtin.html">Import Error Handling(For built-in modules)</li>
-    <li><a href="errors.html">Runtime Error Handling</li>
-    <li><a href="multiple.html">Multiple instance</li>
-    <li><a href="circular.html">ESM Circular dependency</li>
-    <li><a href="circular_default.html">ESM Circular dependency(default export)</li>
-    <li><a href="source-map.html">Source-map</li>
-    <li><a href="aliases.html">Using aliases</li>
-    <li><a href="cdn.html">Import from cdn</li>
-    <li><a href="upload.html">Upload Boot Image</li>
+    <li><a href="parse_error.html">Parse Error Handling</a></li>
+    <li><a href="import_error.html">Import Error Handling</a></li>
+    <li><a href="import_error_builtin.html">Import Error Handling(For built-in modules)</a></li>
+    <li><a href="errors.html">Runtime Error Handling</a></li>
+    <li><a href="multiple.html">Multiple instance</a></li>
+    <li><a href="circular.html">ESM Circular dependency</a></li>
+    <li><a href="circular_default.html">ESM Circular dependency(default export)</a></li>
+    <li><a href="source-map.html">Source-map</a></li>
+    <li><a href="aliases.html">Using aliases</a></li>
+    <li><a href="cdn.html">Import from cdn</a></li>
+    <li><a href="upload.html" data-manual="1">Upload Boot Image</a></li>
 </ul>
 `
 };
 await main(fixture);
 await sleep();
-checkPrt((c)=>c.includes("Import ES Module"));
+
+// --- Test runner ---
+// リンク一覧を DOM から収集（data-manual="1" のものは自動テスト対象外）
+const links = [...document.querySelectorAll("#test-list a")]
+    .filter(a => !a.dataset.manual)
+    .map(a => ({ href: a.getAttribute("href"), label: a.textContent.trim() }));
+
+const iframe = document.getElementById("test-frame");
+const statusDiv = document.getElementById("test-status");
+
+const POLL_INTERVAL = 200;   // ms
+const TIMEOUT = 15000;       // ms per test
+
+function setStatus(msg, color) {
+    statusDiv.style.color = color || "";
+    statusDiv.textContent = msg;
+}
+
+async function runTest({ href, label }) {
+    return new Promise((resolve) => {
+        setStatus("Running: " + label + " (" + href + ") ...");
+        iframe.src = href;
+
+        let elapsed = 0;
+        const timer = setInterval(() => {
+            elapsed += POLL_INTERVAL;
+            let iframeText = "";
+            try {
+                iframeText = iframe.contentDocument?.body?.innerText ?? "";
+            } catch (e) {
+                // cross-origin などでアクセス不可の場合は無視
+            }
+
+            if (iframeText.includes("Test passed") || iframeText.includes("Passed")) {
+                clearInterval(timer);
+                resolve({ ok: true });
+            } else if (iframeText.includes("!FAILED!")) {
+                clearInterval(timer);
+                resolve({ ok: false, detail: iframeText });
+            } else if (elapsed >= TIMEOUT) {
+                clearInterval(timer);
+                resolve({ ok: false, detail: "Timeout after " + TIMEOUT + "ms. iframe body:\n" + iframeText });
+            }
+        }, POLL_INTERVAL);
+    });
+}
+
+let allPassed = true;
+for (const link of links) {
+    const result = await runTest(link);
+    // li の色を更新
+    const anchor = [...document.querySelectorAll("#test-list a")]
+        .find(a => a.getAttribute("href") === link.href);
+    if (anchor) {
+        anchor.parentElement.style.color = result.ok ? "green" : "red";
+        anchor.parentElement.title = result.ok ? "passed" : result.detail;
+    }
+    if (!result.ok) {
+        allPassed = false;
+        prt("!FAILED! " + link.label + ": " + result.detail);
+    }
+}
+
+iframe.src = "about:blank";
+
+if (allPassed) {
+    prt("Test passed");
+} else {
+    prt("!FAILED! Some tests did not pass.");
+}
 </script>
