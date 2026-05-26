@@ -12,6 +12,7 @@ ap.rel("webcartridge.js")
 );
 const zipfile=ap.rel("setup.zip");
 sh.cd("idb/run");
-await sh.exec("zip",["-r", zipfile.path(), ".",  "-x", ".gsync/*"]);
+if (zipfile.exists()) await sh.exec("rm",[zipfile.path()]);
+await sh.exec("zip",["-r", zipfile.path(), ".",  "-x", '".gsync/*"',  '".git/*"']);
 
 
