@@ -1,7 +1,7 @@
 <body></body>
 <script type="module">
 import pNode from "../dist/index.js";
-import {main,prt} from "./setup.js";
+import {main,prt,checkPrt,sleep} from "./setup.js";
 import "./console.js";
 const fixture={
     "package.json":`{"type":"module"}`,
@@ -30,17 +30,8 @@ window.addEventListener("error", async (e) => {
     f.text(f.text()+"}");
     prt("Error fixed!");
     await pNode.importModule(home.rel("main.js"));
+    await sleep();
+    checkPrt((c)=>c.includes("Error fixed!") && c.includes("42"));
 });
-//try {
-    await main(fixture);
-/*} catch(e) {
-    console.log("error", e);
-    prt(e);
-    await new Promise(s=>setTimeout(s,1000));
-    const home=pNode.FS.get("/node/");
-    const f=home.rel("my_module.js");
-    f.text(f.text()+"}");
-    prt("Error fixed!");
-    await pNode.importModule(home.rel("main.js"));
-}*/
+await main(fixture);
 </script>

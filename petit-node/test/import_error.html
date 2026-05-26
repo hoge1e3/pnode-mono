@@ -1,7 +1,7 @@
 <body></body>
 <script type="module">
 import pNode from "../dist/index.js";
-import {main,prt} from "./setup.js";
+import {main,prt,checkPrt,sleep} from "./setup.js";
 const fixture={
     "package.json":`{"type":"module"}`,
     "main.js": `
@@ -31,5 +31,7 @@ try {
     f.text(f.text().replace(/bar/g,"foo"));
     prt("Error fixed!");
     await pNode.importModule(home.rel("main.js"));
+    await sleep();
+    checkPrt((c)=>c.includes("Error fixed!") && c.includes("42"));
 }
 </script>

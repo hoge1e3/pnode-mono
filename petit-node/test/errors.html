@@ -1,8 +1,7 @@
-<!--script src="../dist/index.js"></script>
-<script src="setup.js"></script-->
+<body></body>
 <script type="module">
 import pNode from "../dist/index.js";
-import {main} from "./setup.js";
+import {main,prt,checkPrt,sleep} from "./setup.js";
 const fixture={
     "package.json":`{"type":"module"}`,
     "main.js": `
@@ -33,7 +32,9 @@ export function bar(x) {
 
 };
 pNode.on("error",(evt)=>{
-    console.log(evt);
+    prt(evt);
 });
 main(fixture);
+await sleep();
+checkPrt((c)=>c.includes("Caught:") && c.includes("TypeError"));
 </script>

@@ -1,7 +1,7 @@
 <body></body>
 <script type="module">
 import pNode from "../dist/index.js";
-import {main,prt} from "./setup.js";
+import {main,prt,checkPrt,sleep} from "./setup.js";
 window.pNode=pNode;
 window.prt=prt;
 const fixture={
@@ -22,5 +22,7 @@ try {
     f.text(f.text().replace(/readfileSync/g,"readFileSync"));
     prt("Error fixed!");
     await pNode.importModule(home.rel("main.js"));
+    await sleep();
+    checkPrt((c)=>c.includes("Error fixed!") && c.includes("/node/main.js"));
 }
 </script>
