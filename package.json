@@ -3,6 +3,8 @@
   "version": "2.0.3",
   "main": "index.js",
   "scripts": {
+    "clone": "bash clone.sh",
+    "clone-acepad": "bash clone_acepad.sh",
     "publish": "node ./publish.mjs",
     "sync": "node ./gitsync_all.mjs",
     "verup": "npm login && node ./versionup.mjs && npm run publish",
@@ -11,7 +13,7 @@
     "test": "cd petit-node && npm run test",
     "ver-conflict": "node scripts/find-package-conflict.mjs",
     "bootpack": "cd bootpack && npx webpack",
-    "gio": "node scripts/copy-to-gio.mjs",
+    "gio": "bash scripts/copy-to-gio.sh",
     "bio": "npm run build-dev && npm run gio",
     "bootloader": "node server.mjs"
   },

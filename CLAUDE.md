@@ -7,6 +7,9 @@
 
 詳細は [README.md](./README.md) および各パッケージの README を参照。
 
+## 開発環境
+
+Windows上のWSL。ほかのLinuxでも多分動作する。
 ---
 
 ## モノレポ構成
