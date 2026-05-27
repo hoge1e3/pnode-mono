@@ -1,0 +1,424 @@
+import * as path from "path";
+import { Repo, sameExceptCRLF } from "./git.js";
+import { DownloadableObjectStore, GIT_DIR_NAME, Sync, SyncFactory } from "./sync.js";
+import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, asPathInRepo, Author, BranchName, FilePath, Hash, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, IgnoreState, CommitEntry } from "./types.js";
+import {promises as fs} from "fs";
+import { factory as offlineObjectStoreFactory} from "./objects.js";
+import { getSplashScreen } from "./splash.js";
+import { GSYNC_CONFLICT_DIR } from "./constants.js";
+import { exists, join } from "./util.js";
+const splashScreen=await getSplashScreen();
+export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
+  try{
+    // 1st command line arg is either clone commit sync
+    // call corresponding function
+    const [,, command, ...args] = argv;
+    // pass current working directory as first argument
+    //const cwd = process.cwd();
+    switch (command) {
+        case "clone":
+        case "clone_overwrite":
+        case "clone_nocheckout":
+            if (args.length<2) {
+                console.log(argv.join(" ")+" <serverUrl> <repoId>");
+                return;
+            }
+            const b=args[2]||"main";
+            if (command==="clone") {
+                return await clone(cwd, args[0], args[1],b);
+            } else if(command==="clone_nocheckout") {
+                return await clone(cwd, args[0], args[1],b, {gitDirName:GIT_DIR_NAME, allowNonEmpty:"skipCheckout"});
+            } else {
+                return await clone(cwd, args[0], args[1],b, {gitDirName:GIT_DIR_NAME, allowNonEmpty:"overwrite"});
+            }
+        case "init":
+            if (args.length<1) {
+                console.log(argv.join(" ")+" <serverUrl>");
+                return;
+            }
+            const serverUrl=args[0];
+            return await init(cwd, serverUrl, GIT_DIR_NAME);
+        case "commit":
+            return await commit(cwd);
+        case "sync":
+        case undefined:
+            return await syncWithRetry(cwd, "saveHashedRemote");
+        case "newer":
+            return await syncWithRetry(cwd, "newer");
+        case "log":
+            return await log(cwd, !!args[0]);
+        case "cat-file":
+            return await catFile(cwd, args[0]);
+        //case "download-objects":
+        //    return await downloadObjects(cwd, args.includes("-a")?"all":"max_mtime");
+        case "manage":
+            return await manage(cwd);
+        case "scan":
+            return await scan(cwd, 
+            args.includes("--id"), 
+            args.includes("--url"), 
+            args.includes("--key"),
+            args.includes("--shell"),
+            );
+        default:
+            throw new Error(`Unknown command: ${command}`);
+    }
+  }finally {await splashScreen.hide();} 
+}
+export async function scan(cwd:string, 
+showRepo:boolean, showUrl:boolean, 
+showKey:boolean,shell:boolean){
+    const name=GIT_DIR_NAME;
+    // scan recursively *cwd* and list folder named *name*
+    async function scanDir(dir:FilePath) {
+        let results:FilePath[]=[];
+        const files=await fs.readdir(dir);
+        for (let f of files) {
+            const fullpath=join(dir,f);
+            if ((await fs.stat(fullpath)).isDirectory()) {
+                if (f===name) {
+                    results.push(dir);
+                } else {
+                    results=results.concat(await scanDir(fullpath));
+                }
+            }
+        }
+        return results;
+    }
+    for (let d of await scanDir(asFilePath(cwd))){
+      if(shell){
+        console.log("cd",d,";gsync");
+        continue;
+      }
+        const field:string[]=[d];
+        if (showKey || showRepo || showUrl) {
+            const gitDir=join(d, GIT_DIR_NAME);
+            const syncf=new SyncFactory(gitDir);
+            const conf=await syncf.readConfig();
+            if (showUrl) field.push(conf.serverUrl);
+            if (showRepo) field.push(conf.repoId);
+            if (showKey) field.push(conf.apiKey);
+        }
+        console.log(...field);
+    }
+}
+export async function manage(cwd:string, gitDirName=GIT_DIR_NAME) {
+    const dir=path.join(cwd, gitDirName);
+    const gitDir=asFilePath(dir);
+    const syncf=new SyncFactory(gitDir);
+    const conf=await syncf.readConfig();
+    const repoId=conf.repoId;
+    const url=conf.serverUrl;
+    const manage=
+        url.match  (/\w+.php$/)?
+        url.replace(/\w+.php$/,"manage.php"):
+        url+"manage.php";
+    console.log(`Open ${manage}?repo=${repoId}`);
+}
+async function offlineRepo(gitDir:FilePath) {
+    const objectStore=await offlineObjectStoreFactory(gitDir);
+    const repo=new Repo(gitDir,objectStore);
+    return repo;
+}
+export async function catFile(dir: string, hash: string ) {
+    const gitDir=await findGitDir(asFilePath(dir));
+    const repo=await offlineRepo(gitDir);
+    const obj=await repo.readObject(asHash(hash));
+    if (!obj) {
+        console.log("No such object: ", hash);
+        return;
+    }
+    console.log("Type: ", obj.type);
+    console.log("Content: ");
+    console.log(obj.content.toString());
+    
+}
+export async function init(cwd: string, serverUrl: string, gitDirName=GIT_DIR_NAME) {
+    const dir=path.join(cwd, gitDirName);
+    if (!serverUrl.endsWith(".php") && !serverUrl.endsWith("/")){
+        console.warn(`WARNING! ${serverUrl} should be ends with .php or / `);
+    }
+    const gitDir=asFilePath(dir);
+    const syncf=new SyncFactory(gitDir);
+    const sync=await syncf.init(serverUrl);
+    const repoId=sync.webapi.config.repoId;
+    console.log("Initialized new repository with id: ", repoId);
+    const repo=sync.repo;//new Repo(gitDir);
+    await repo.setCurrentBranchName(asBranchName("main"));
+    return repoId;
+}
+export async function clone(into:string,    serverUrl: string, repoId: string, branch="main", options:CloneOptions={gitDirName:GIT_DIR_NAME}) {
+    await _clone(asFilePath(into), {serverUrl,repoId,apiKey:Math.random().toString(36).slice(2)} , asBranchName(branch), options );
+}
+
+async function _clone(into:FilePath, config:APIConfig,  branch: BranchName, options: CloneOptions) {
+    let skipco;
+    if (await exists(into) && (await fs.readdir(into)).length>0) {
+        if (!options.allowNonEmpty) throw new Error(`${into} is not empty.`);
+        skipco=(options.allowNonEmpty==="skipCheckout");
+    }
+    console.log(`Cloning into ${into}...`);
+    await fs.mkdir(into,{recursive:true});
+    const newGitDir=asFilePath(path.join(into, options.gitDirName));
+    await fs.mkdir(newGitDir,{recursive:true});
+    const newSyncf=new SyncFactory(newGitDir);
+    await newSyncf.writeConfig(config);
+    const newSync=await newSyncf.load();
+    const repo=newSync.repo;//new Repo(newGitDir);
+    //await newSync.downloadObjects();
+    const headCommitHash=await newSync.getRemoteHead(branch);
+    if (!headCommitHash) throw new Error("No remote head on "+branch);
+    await repo.updateHead(asLocalRef(branch), headCommitHash );
+    if (!skipco) {
+        const headCommit=await repo.readCommit(headCommitHash);
+        await repo.checkoutTreeToDir(headCommit.tree, into);
+    }
+    await repo.setCurrentBranchName(branch);
+    return newSync;
+
+}
+export async function findGitDir(cwd: FilePath):Promise<FilePath> {
+    let c=cwd as string;
+    while(true) {
+        const res=asFilePath(path.join(c,GIT_DIR_NAME));
+        if (await exists(res)) return res;
+        const nc=path.dirname(c);
+        if (!nc || nc===c) throw new Error(`No git repo found from ${cwd}`);
+        c=nc;
+    }
+}
+let verbose=false;
+export async function commit(dir: string):Promise<Hash> {
+    const gitDir = await findGitDir(asFilePath(dir));
+    // even commit is failed unless online 
+    const syncf=new SyncFactory(gitDir);
+    const sync=await syncf.load();
+    const repo=sync.repo;
+    if (!await exists(repo.headPath())) {
+        await repo.setCurrentBranchName(asBranchName("main"));
+    }
+    const branch=await repo.getCurrentBranchName();
+    const ref=asLocalRef(branch);
+    const tree=await repo.buildTreeFromWorkingDir();
+    const curCommitHash = await repo.readHead(ref);
+    if (verbose) console.log("curCommitHash", curCommitHash);
+    // even commit is failed unless online 
+    const curCommit = curCommitHash ? await repo.readCommit(curCommitHash) : null;
+    const newCommitTreeHash=await repo.writeTree(tree);
+    if (verbose) console.log("newCommitTreeHash", newCommitTreeHash);
+    const MERGE_HEAD=await repo.readMergeHead();
+    if (!MERGE_HEAD && curCommit && curCommit.tree===newCommitTreeHash) {
+        console.log(branch,": Nothing changed");
+        return curCommitHash!;
+    }
+    let isMobile:RegExpMatchArray|null=null;
+    try{
+      isMobile=navigator.userAgent.match(/iphone|android/i);
+    }catch(e){
+    }
+    const author=new Author(isMobile?isMobile+"":"pc","test@example.com");    
+    const newCommitHash=await repo.writeCommit({
+        author,
+        committer: author,
+        parents: [...curCommitHash?[curCommitHash]:[], ...MERGE_HEAD? [MERGE_HEAD]:[]],
+        message: new Date()+"",
+        tree: newCommitTreeHash
+    });
+    if (MERGE_HEAD) await repo.writeMergeHead();
+    if (verbose) console.log("New commit for", branch, ": ",newCommitHash);
+    await repo.updateHead(ref, newCommitHash);
+    return newCommitHash;
+}
+export async function syncWithRetry(dir: string, 
+    conflictResolutionPolicy:ConflictResolutionPolicy): Promise<SyncStatus> {
+    const res=[];
+    for(let i=0;i<5;i++) {
+        let r=await sync(dir, conflictResolutionPolicy);
+        res.push(r);
+        if (r!=="auto_merged") {
+            // auto_merged->pushed
+            if(res.includes("auto_merged")) return "auto_merged"; 
+            else return r;
+        }
+    }
+    throw new Error("Auto-merge repeated 5 times. Aborted.");
+}
+/*export async function downloadObjects(dir:string, ignoreState:IgnoreState) {
+    const gitDir = findGitDir(asFilePath(dir));
+    const sync=new Sync(gitDir);
+    await sync.downloadObjects(ignoreState);
+}*/
+export async function sync(dir: string, 
+    conflictResolutionPolicy:ConflictResolutionPolicy):Promise<SyncStatus> {
+    //splashScreen.show("Commit");
+    //const localCommitHash=await commit(dir);
+    const gitDir = await findGitDir(asFilePath(dir));
+    const syncf=new SyncFactory(gitDir);
+    const sync=await syncf.load();
+    const repo=sync.repo;//new Repo(gitDir);
+    const branch=await repo.getCurrentBranchName();
+    //splashScreen.show("Check remote");
+    await splashScreen.show("Commit");
+    //const remoteCommitHash= await sync.getRemoteHead(branch);
+    const [localCommitHash,remoteCommitHash]= await Promise.all([
+        commit(dir),
+        sync.getRemoteHead(branch),
+    ]);
+    if (!remoteCommitHash) {
+        // push to remote(new)
+        await splashScreen.show("Upload objects");
+        await sync.uploadObjects();
+        if (verbose) console.log("Push ",branch, " into ", localCommitHash);
+        await sync.addRemoteHead(branch, localCommitHash);
+        return "newly_pushed";
+    }
+    //await sync.downloadObjects();
+    const baseCommitHash=await repo.findMergeBase(localCommitHash, remoteCommitHash);
+    if (remoteCommitHash===baseCommitHash) {
+        // update remote
+        if (localCommitHash===remoteCommitHash) {
+            console.log("Remote is up-to-date: ",localCommitHash);
+            return "no_changes";
+        }
+        await splashScreen.show("Upload objects");
+        await sync.uploadObjects();
+        if (verbose) console.log("Push into remote: ",remoteCommitHash, " to ",localCommitHash);
+        await sync.setRemoteHead(branch, remoteCommitHash, localCommitHash);
+        return "pushed";
+    }
+    const localCommit=await repo.readCommit(localCommitHash);
+    const remoteCommit=await repo.readCommit(remoteCommitHash);
+    const remoteCommitTime=remoteCommit.author.date;
+    const localTree=await repo.readTree(localCommit.tree);
+    const remoteTree=await repo.readTree(remoteCommit.tree);
+    if (localCommitHash===baseCommitHash) {
+        // update local
+        const diff=await repo.diffTreeRecursive(localTree, remoteTree)
+        await repo.applyDiff(diff);
+        await repo.updateHead(asLocalRef(branch), remoteCommitHash);
+        console.log("Update local branch", localCommitHash, "to" ,remoteCommitHash);
+        return "pulled";
+    }   
+    const baseCommit=await repo.readCommit(baseCommitHash);
+    const baseTree=await repo.readTree(baseCommit.tree);
+    const {toA, toB, conflicts}=await repo.threeWayMerge(baseTree, localTree, remoteTree);
+    await repo.writeMergeHead(remoteCommitHash);
+    await repo.applyDiff(toA);
+    if (conflicts.length==0) {
+        console.log("Auto-Merged from ",remoteCommitHash);
+        const mergedCommitHash=await commit(dir);
+        if (verbose) console.log("Merged commit hash: ",mergedCommitHash);
+        if (verbose) console.log("Run sync again to push merged commit");       
+        return "auto_merged"; 
+    } else {
+        let confpaths:Conflicted=[];
+        for (let c of conflicts) {
+            const remoteObj=await repo.readObject(c.b);
+            const localPath = repo.toFilePath(c.path);
+            const localContent = await fs.readFile(localPath);
+            if (!sameExceptCRLF(localContent, remoteObj.content)) {
+                const winner = 
+                    conflictResolutionPolicy==="ignoreLocal"? "remote":
+                    conflictResolutionPolicy==="ignoreRemote"? "local":
+                    conflictResolutionPolicy==="newer"?
+                        (remoteCommitTime.getTime()>
+                        (await fs.stat(localPath)).mtime.getTime()?"remote":"local"):
+                    null;
+                if (winner===null) {
+                    const postfix=`(${remoteCommitHash.substring(0,8)})`;
+                    const postfixedPath =await conflictedFile(repo, localPath, postfix);
+                    confpaths.push(repo.toPathInRepo(postfixedPath));
+                    if (confpaths.length==1) console.log("CONFLICT");
+                    console.log(`Conflict saved at ${postfixedPath}`);
+                    await fs.mkdir(path.dirname(postfixedPath),{recursive:true});
+                    await fs.writeFile(postfixedPath, remoteObj.content);
+                } else if (winner==="remote") {
+                    console.log(`Overwrite ${localPath}`); 
+                    await fs.writeFile(localPath, remoteObj.content);
+                } else {
+                    console.log(`Skip ${localPath}`); 
+                }
+            }
+        }
+        if (confpaths.length>0) {
+            console.log("Resolve conflicts and run sync again");
+            return confpaths;
+        } else {
+            console.log("Auto-Merged from ",remoteCommitHash);
+            const mergedCommitHash=await commit(dir);
+            if (verbose) console.log("Merged commit hash: ",mergedCommitHash);
+            if (verbose) console.log("Run sync again to push merged commit");       
+            return "auto_merged"; 
+        }
+    }
+}
+async function conflictedFile(repo: Repo, filePath:FilePath, postfix:string):Promise<FilePath> {
+    const work=repo.workingDir();
+    if (!await exists(join(work, GSYNC_CONFLICT_DIR))) {
+        return makePostfix(filePath,postfix);
+    }
+    const rel=path.relative(work, filePath);
+    if (rel.startsWith("..")) throw new Error(`${filePath} is out of ${work}`);
+    const dst=makePostfix( path.join(work, GSYNC_CONFLICT_DIR, rel) as FilePath,postfix);
+    return dst;
+}
+function makePostfix<T extends string>(filepath:T, postfix:string):T {
+    // ex: filepath = "/a/b/test.txt"  postfix = "(1)"
+    //       returns "/a/b/test(1).txt"
+    //     filepath may either absolute or relative path
+    const ext = path.extname(filepath);
+    const basename = path.basename(filepath, ext);
+    const dirname = path.dirname(filepath);
+    const newBasename = `${basename}${postfix}${ext}`;
+    return path.join(dirname, newBasename) as T;
+}
+export async function log(dir: string, check_ref=false) {
+    
+    const gitDir = await findGitDir(asFilePath(dir));
+    const repo=await offlineRepo(gitDir);
+    const b=await repo.getCurrentBranchName();
+    let ch=await repo.readHead(asLocalRef(b));
+    if (!ch) return;
+    let c=await repo.readCommit(ch);
+    while (c) {
+        console.log(ch, c.message);
+        if (check_ref) console.log("Scanned objects: ",await checkRef(repo, ch));
+        let next:CommitEntry|undefined;
+        for (let canh of c.parents) {
+            try {
+                const can=await repo.readCommit(canh);
+                if (!next || can.author.date.getTime()>next.author.date.getTime()) {
+                    next=can;
+                    ch=canh;
+                }
+            }catch(e) {
+                console.error(e);
+            }
+        }
+        c=next!;
+        //if (c.parents[1]) console.log("Skipped merge commit: ",c.parents[1]);
+    }
+}
+export async function checkRef(repo:Repo, chash:Hash) {
+    const obj=await repo.readCommit(chash);
+    return await tree(obj.tree);
+    async function tree(hash: Hash, _path="./"){
+        let c=0;
+        try {
+            const treeo=await repo.readTree(hash);
+            for (let entry of treeo) {
+                if (entry.mode === '40000') {
+                    // dir
+                    c+=await tree(entry.hash, path.join(_path,entry.name));
+                } else {
+                    const blob=await repo.readObject(entry.hash);
+                    c++;
+                }
+            }
+        } catch (e) {
+            console.error("Missing "+chash+" "+_path);
+        }
+        return c;
+    }
+}
+

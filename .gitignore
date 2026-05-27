@@ -3,5 +3,4 @@ node_modules
 .tsbuildinfo
 idb
 pnode-bootloader
-gsync
 wptest
