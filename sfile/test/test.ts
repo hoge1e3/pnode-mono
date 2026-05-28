@@ -4,6 +4,7 @@ import {_console, alert} from "./helpers/logging.js";
 import {timeout} from "./helpers/async.js";
 import {checkSame, checkSameDir, eqa, retryRmdir} from "./helpers/files.js";
 import {checkGetDirTree, checkGetDirTree_nw, testGetDirTreeExcludeInSubdir} from "./helpers/dirTree.js";
+import {checkPathMethods} from "./helpers/path.js";
 declare const location:any;
         
 export async function getNodeFS():Promise<FileSystemFactory> {
@@ -29,7 +30,6 @@ try {
     _console.log("metaurl",import.meta.url);
     console.log(FS.get("/"));
     console.log(FS.get("/").up());
-    assert(!FS.get("/").up());
     const here=FS.get(import.meta.url);
     const fixtureInSameDir=here.sibling("fixture/");
     const fixture=fixtureInSameDir.exists() ? fixtureInSameDir : here.sibling("../../test/fixture/");
@@ -38,26 +38,7 @@ try {
     //let cd =fixture;
     const r=fixture.rel.bind(fixture);
     const romd=r("rom/");
-    // check relpath:
-    //  path= /a/b/c   base=/a/b/  res=c
-    assert.eq(r("a/b/c").relPath(r("a/b/")) , "c");
-    assert.eq(r("a/b/c").relPath(fixture.rel("a/b/")) , "c");
-    //  path= /a/b/c/   base=/a/b/  res=c/
-    assert(r("a/b/c/").path().endsWith("/"), "endsWith/ "+r("a/b/c/").path());
-    assert(r("a/b/c/").isDirPath(), "dirpath");
-    assert.eq(r("a/b/c/").relPath(r("a/b/")) ,"c/");
-    //  path= /a/b/c/   base=/a/b/c/d  res= ../
-    assert.eq(r("a/b/c/").relPath(r("a/b/c/d")) , "../");
-    //  path= /a/b/c/   base=/a/b/e/f  res= ../../c/
-    assert.eq(r("a/b/c/").relPath(r("a/b/e/f")) , "../../c/");
-    // ext()
-    assert.eq(fixture.rel("test.txt").ext(), ".txt");
-    //assert.eq(P.normalize("c:\\hoge/fuga\\piyo//"), "c:/hoge/fuga/piyo/");
-    _console.log("isChildOf", r("hoge/fuga\\"),(r("hoge\\fuga/piyo//")));
-    assert(r("hoge/fuga\\").contains(r("hoge\\fuga/piyo//")), "isChildOf");
-    assert(!r("hoge/fugo\\").contains(r("hoge\\fuga/piyo//")), "!isChildOf");
-    //testContent();
-    checkTruncSep(FS);
+    checkPathMethods(FS, fixture);
     let ABCD = "abcd\nefg";
     let CDEF = "defg\nてすと";
     //obsolate: ls does not enum mounted dirs
@@ -417,12 +398,6 @@ async function checkWatch(testd:SFile) {
         'change:hogefuga.txt',
     ]))/*.join("\n")*/);//, "checkWatch");
 
-}
-function checkTruncSep(FS:FileSystemFactory) {
-    assert.eq(FS.get("/tmp/test/").name(), "test/");
-    assert.eq(FS.get("/tmp/test/").truncSep(), "test");
-    assert.eq(FS.get("/tmp/test").name(), "test");
-    assert.eq(FS.get("/tmp/test").truncSep(), "test");
 }
 function checkMtime(f:SFile) {
     const t=f.lastUpdate();
