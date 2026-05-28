@@ -2,14 +2,14 @@
   "name": "@hoge1e3/sfile",
   "version": "2.0.1",
   "description": "node.js fs Comprehensive File Wrapper",
-  "main": "./src/SFile.js",
-  "types": "./src/SFile.d.ts",
+  "main": "./js/src/SFile.js",
+  "types": "./js/src/SFile.d.ts",
   "type": "module",
   "scripts": {
     "tsc": "npx tsc",
     "webpack": "echo no-webpack-needed",
     "webpack-dev": "echo no-webpack-needed",
-    "test": "npm run tsc && node test/test.js && node test/test.js"
+    "test": "npm run tsc && node js/test/test.js && node js/test/test.js"
   },
   "repository": {
     "type": "git",
@@ -31,7 +31,8 @@
     "@hoge1e3/content": "^2.0.1"
   },
   "files": [
-    "src"
+    "src",
+    "js/src"
   ],
   "devDependencies": {
     "@types/node": "^24.7.2",

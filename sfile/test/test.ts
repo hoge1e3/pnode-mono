@@ -30,7 +30,9 @@ try {
     console.log(FS.get("/"));
     console.log(FS.get("/").up());
     assert(!FS.get("/").up());
-    const fixture=FS.get(import.meta.url).sibling("fixture/");
+    const here=FS.get(import.meta.url);
+    const fixtureInSameDir=here.sibling("fixture/");
+    const fixture=fixtureInSameDir.exists() ? fixtureInSameDir : here.sibling("../../test/fixture/");
     //const fixture=topDir;//.setPolicy({topDir});
     await checkCopyDir(fixture);
     //let cd =fixture;
