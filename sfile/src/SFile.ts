@@ -335,7 +335,7 @@ export class SFile {
   path() {
     return this.#path;
   }
-  equals(s:string|SFile):boolean{
+  equals(s:string|SFile|AFile):boolean{
     if (typeof s=="string") {
       return this.path()===s;
     } else {
@@ -403,7 +403,7 @@ export class SFile {
     }
   }
 
-  relPath(base:SFile) {
+  relPath(base:SFile|AFile) {
     const {fs,path}=this.#fs.deps;
     const body=path.relative(base.path(), this.#path).replace(/\\/g,"/");
     return (
@@ -421,8 +421,8 @@ export class SFile {
   }
 
   // Copy and move methods
-  copyFrom(src:SFile) {
-    return src.copyTo(this);
+  copyFrom(src:SFile|AFile) {
+    return src.sync().copyTo(this);
   }
   toString(){return this.#path;}
   /**
@@ -431,55 +431,57 @@ export class SFile {
    * @param options 
    * @returns 
    */
-  copyTo(dst:SFile, options={followlink:false as boolean}):SFile{
+  copyTo(dst:SFile|AFile, options={followlink:false as boolean}):SFile{
     let src:SFile=this;
+    let sdst=dst.sync();
     const followlink=options.followlink;
     if (followlink) {
       src=src.resolveLink();
-      dst=dst.resolveLink();
+      sdst=sdst.resolveLink();
     }
     const nofollow=!followlink;
     const srcIsDir=src.isDir({nofollow});
-    if (srcIsDir && !dst.exists()) {
-      dst.mkdir();
+    if (srcIsDir && !sdst.exists()) {
+      sdst.mkdir();
     }
-    let dstIsDir=dst.isDir({nofollow});
+    let dstIsDir=sdst.isDir({nofollow});
     if (!srcIsDir && dstIsDir) {
-      dst=dst.rel(src.name());
-      dst.assertRegularFile();
+      sdst=sdst.rel(src.name());
+      sdst.assertRegularFile();
       dstIsDir=false;
     }
     if (srcIsDir && !dstIsDir) {
-      throw new Error("Cannot move dir "+src.path()+" to file "+dst.path());
+      throw new Error("Cannot move dir "+src.path()+" to file "+sdst.path());
     } else if (!srcIsDir && !dstIsDir) {
       if (src.isLink()) src=src.resolveLink();
-      if (dst.isLink()) dst=dst.resolveLink();
+      if (sdst.isLink()) sdst=sdst.resolveLink();
       const c=src.getContent();
-      dst.setContent(c);
+      sdst.setContent(c);
     } else {
-      if (!srcIsDir || !dstIsDir) throw new Error(src+" to "+dst+" should both dirs");
+      if (!srcIsDir || !dstIsDir) throw new Error(src+" to "+sdst+" should both dirs");
       for (let e of src.listFiles({cache:1000})) {
-        e.copyTo(dst.rel(e.relPath(src)),options);
+        e.copyTo(sdst.rel(e.relPath(src)),options);
       }
     }
-    dst.cache.clear();
-    return dst;
+    sdst.cache.clear();
+    return sdst;
   }
 
-  moveFrom(src:SFile) {
-    return src.moveTo(this);
+  moveFrom(src:SFile|AFile) {
+    return src.sync().moveTo(this);
   }
 
-  moveTo(dst:SFile) {
+  moveTo(dst:SFile|AFile) {
     /*if (dst.exists()) {
       throw new Error(`${dst.path()} already exists`);
     }*/
     const {fs,path}=this.#fs.deps;
-    fs.renameSync(this.#path, dst.#path);
+    const sdst=dst.sync();
+    fs.renameSync(this.#path, sdst.path());
     this.cache.clear();
     /*this.copyTo(dst);
     this.rm({recursive:true});*/
-    return dst;
+    return sdst;
   }
   contentType() {
     return addEncoding(this.#fs.mimeTypes[this.ext()]||"application/octet-stream");
@@ -754,7 +756,7 @@ export class SFile {
     if (!p) throw new Error(`Cannot prepare dir for '/'`);
     return p.exists() || p.mkdir();
   }
-  contains(child:SFile|string) {
+  contains(child:SFile|AFile|string) {
     return SFile.containsPath(this.path(), typeof child==="string"? child:child.path());
     // truncSep(child.path()).startsWith(truncSep(this.path()));
   }
@@ -768,7 +770,7 @@ export class SFile {
     if(!stat.isSymbolicLink())return undefined;
     return fs.realpathSync(this.#path);
   }
-  link(to:SFile|string) {
+  link(to:SFile|AFile|string) {
     //to: existent this: non-existent
     //`this` points to `to`
     // string for relative link
@@ -828,7 +830,11 @@ function addEncoding(ctype:string){
 }
 //--- async
 export class AFile {
+  static is(obj:any):obj is AFile {
+    return obj instanceof AFile;
+  }
   #path:string;
+  readonly _path:string;// Just debug info
   #fs:FileSystemFactory;
   #policy: Policy|undefined;
   public cache = new Cache<CachedInfo>();
@@ -839,6 +845,15 @@ export class AFile {
     if (policy && !policy.topDir.contains(this.#path)) {
       throw new Error(`Creating '${filePath}' is prohibited by policy. It is outside of '${policy.topDir}'.`);
     }
+    this._path=this.#path;
+  }
+  setPolicy(p:Policy) {
+    if (this.#policy) throw new Error("policy already set");
+    return new AFile(this.#fs, this.#path, p);
+  }
+  clone(_path?:string) {
+    const path=_path||this.#path;
+    return new AFile(this.#fs, path, this.#policy);
   }
   sync(){
     return new SFile(this.#fs,this.#path,this.#policy);
@@ -846,21 +861,600 @@ export class AFile {
   async(){
     return this;
   }
+  text(str:string):Promise<this>;
+  text():Promise<string>;
+  async text(str?:string):Promise<this|string> {
+    if (str === undefined) {
+      return this.getText();
+    }
+    return this.setText(str);
+  }
+  async lines():Promise<string[]> {
+    return (await this.getText()).split(/\r?\n/);
+  }
+  async getText():Promise<string>{
+    const {fs,path}=this.#fs.deps;
+    return fs.promises.readFile(this.#path, "utf8");
+  }
+  async setText(str:string):Promise<this> {
+    const {fs,path}=this.#fs.deps;
+    await this.prepareDir();
+    await fs.promises.writeFile(this.#path, str, "utf8");
+    this.cache.clear();
+    return this;
+  }
+  async appendText(str:string):Promise<this> {
+    const {fs,path}=this.#fs.deps;
+    await this.prepareDir();
+    await fs.promises.appendFile(this.#path, str);
+    this.cache.clear();
+    return this;
+  }
+  async getBlob():Promise<Blob> {
+    return new Blob([await this.bytes()],{type:this.contentType()});
+  }
+  async setBlob(blob:Blob):Promise<ArrayBuffer> {
+    const a=await blob.arrayBuffer();
+    await this.setBytes(a);
+    return a;
+  }
+  obj(o:object):Promise<this>;
+  obj():Promise<object>;
+  async obj(o?:object):Promise<this|object> {
+    if (o === undefined) {
+      return JSON.parse(await this.text());
+    }
+    await this.text(JSON.stringify(o, null, 2));
+    return this;
+  }
+  bytes(b:ArrayBuffer):Promise<this>;
+  bytes(b:Uint8Array<ArrayBuffer>):Promise<this>;
+  bytes():Promise<ArrayBuffer|Uint8Array<ArrayBuffer>>;
+  async bytes(b?:ArrayBuffer|Uint8Array<ArrayBuffer>):Promise<this|ArrayBuffer|Uint8Array<ArrayBuffer>> {
+    if (b === undefined) {
+      return this.getBytes();
+    }
+    await this.setBytes(b);
+    return this;
+  }
+  async setBytes<T extends ArrayBuffer|Uint8Array<ArrayBuffer>>(b:T):Promise<this> {
+    const {fs,path}=this.#fs.deps;
+    await this.prepareDir();
+    if (Content.isArrayBuffer(b)) {
+      await fs.promises.writeFile(this.#path, new Uint8Array(b));
+    } else {
+      await fs.promises.writeFile(this.#path, b);
+    }
+    this.cache.clear();
+    return this;
+  }
+  async getBytes(options?:BinTypeOption):Promise<Uint8Array<ArrayBuffer>|ArrayBuffer> {
+    const {fs,path,Buffer}=this.#fs.deps;
+    const binType=options?.binType||Buffer;
+    const buffer = await fs.promises.readFile(this.#path);
+    return binType === ArrayBuffer ? Content.buffer2ArrayBuffer(buffer) : buffer as Uint8Array<ArrayBuffer>;
+  }
+  dataURL(url:string):Promise<this>;
+  dataURL():Promise<string>;
+  async dataURL(url?:string):Promise<this|string>{
+    if (!url) {
+      return (await this.getContent()).toURL();
+    }
+    return this.setContent(Content.url(url));
+  }
   async getContent():Promise<Content> {
     const {fs,path}=this.#fs.deps;
     const buf=await fs.promises.readFile(this.#path);
-    return Content.fromUint8Array(buf);
+    return Content.fromNodeBuffer(buf,this.contentType());
   }
-  async setContent(c:Content):Promise<void> {
-    const {fs,path}=this.#fs.deps;
-    await fs.promises.writeFile(this.#path, c.toUint8Array());
-  }
-  async text(text?:string):Promise<string> {
-    if (typeof text==="string") {
-      await this.setContent(Content.fromMixedText(text));
-      return text;
+  async setContent(c:Content):Promise<this> {
+    const {fs,path,Buffer}=this.#fs.deps;
+    await this.prepareDir();
+    if (c.hasPlainText()) {
+      await fs.promises.writeFile(this.#path, c.toPlainText());
+    } else{
+      await fs.promises.writeFile(this.#path, c.toBin(Buffer));
     }
-    return (await this.getContent()).toMixedText();
+    this.cache.clear();
+    return this;
   }
-  //WIP
+  async appendContent(c:Content):Promise<this> {
+    const {fs,path,Buffer}=this.#fs.deps;
+    await this.prepareDir();
+    if (c.hasPlainText()) {
+      await fs.promises.appendFile(this.#path, c.toPlainText());
+    } else{
+      await fs.promises.appendFile(this.#path, c.toBin(Buffer));
+    }
+    this.cache.clear();
+    return this;
+  }
+  async stat():Promise<Stats> {
+    const {fs,path}=this.#fs.deps;
+    return fs.promises.stat(this.#path) as Promise<Stats>;
+  }
+  async lstat():Promise<Stats> {
+    const {fs,path}=this.#fs.deps;
+    const cached=this.cache.get().lstat;
+    if (cached) return cached;
+    return fs.promises.lstat(this.#path) as Promise<Stats>;
+  }
+  async getMetaInfo({nofollow}={nofollow:false}):Promise<MetaInfo>{
+    const {fs,path}=this.#fs.deps;
+    if (nofollow) {
+      const lstat = await this.lstat();
+      return {
+        lastUpdate: lstat.mtimeMs,
+        link: lstat.isSymbolicLink() ? await fs.promises.readlink(this.#path) : undefined,
+        ...(lstat.hasFineMtime?{hasFineMtime:true}:{}),
+      };
+    } else {
+      const stat = await this.stat();
+      return {
+        lastUpdate: stat.mtimeMs,
+        ...(stat.hasFineMtime?{hasFineMtime:true}:{}),
+      };
+    }
+  }
+  async setMetaInfo(m:{lastUpdate:number}):Promise<this>{
+    const {fs,path}=this.#fs.deps;
+    const stats = await this.stat();
+    await fs.promises.utimes(this.#path, stats.atime, new Date(m.lastUpdate));
+    this.cache.clear();
+    return this;
+  }
+  async size():Promise<number>{
+    const stats = await this.stat();
+    return stats.size;
+  }
+  async lastUpdate():Promise<number> {
+    const lstat = await this.lstat();
+    return lstat.mtimeMs;
+  }
+  async rm(options:{r?:boolean, recursive?:boolean} = {}):Promise<this> {
+    const {fs,path}=this.#fs.deps;
+    if (await this.isDir({nofollow:true})) {
+      if (options.r || options.recursive) {
+        await fs.promises.rm(this.#path, { recursive: true, force: true });
+      } else {
+        await fs.promises.rmdir(this.#path);
+      }
+    } else {
+      await fs.promises.unlink(this.#path);
+    }
+    this.cache.clear();
+    return this;
+  }
+  async exists():Promise<boolean> {
+    const {fs,path}=this.#fs.deps;
+    if (this.cache.get().lstat) {
+      return true;
+    }
+    try {
+      await fs.promises.access(this.#path);
+      return true;
+    } catch(e) {
+      return false;
+    }
+  }
+  async isDir({nofollow}={nofollow:false}):Promise<boolean> {
+    if (nofollow) {
+      const lstat=this.cache.get().lstat;
+      if (lstat) return lstat.isDirectory();
+    }
+    if (!await this.exists()) return false;
+    if (nofollow) {
+      return (await this.lstat()).isDirectory();
+    } else {
+      return (await this.resolveLink()).isDir({nofollow:true});
+    }
+  }
+  isDirPath(){
+    return this.#path.endsWith("/");
+  }
+  endsWith(postfix:string){return this.name().endsWith(postfix);}
+  startsWith(prefix:string){return this.name().startsWith(prefix);}
+  path() {
+    return this.#path;
+  }
+  equals(s:string|SFile|AFile):boolean{
+    if (typeof s=="string") {
+      return this.path()===s;
+    } else {
+      return this.path()===s.path();
+    }
+  }
+  name() {
+    return this.truncSep()+(this.#path.endsWith("/")?"/":"");
+  }
+  truncSep(){
+    const {fs,path}=this.#fs.deps;
+    return path.basename(this.#path);
+  }
+  ext() {
+    const {fs,path}=this.#fs.deps;
+    return path.extname(this.#path);
+  }
+  truncExt(e?:string) {
+    const name = this.name();
+    if (e === undefined) {
+      e = this.ext();
+    }
+    return name.substring(0, name.length-e.length);
+  }
+  up() {
+    const {fs,path}=this.#fs.deps;
+    if (this.#path==="/" || this.#path==="\\") {
+      return null;
+    }
+    const dirn=path.dirname(this.#path);
+    if (dirn===this.#path) return null;
+    if (this.#policy) {
+      if (!SFile.containsPath( this.#policy.topDir.path(), dirn)) {
+        return null;
+      }
+    }
+    return this.clone(dirn);
+  }
+  parent(){return this.up();}
+  sibling(name:string) {
+    const p=this.up();
+    if (!p) throw new Error(`Cannot get sibling of '${this.path()}'`);
+    return p.rel(name);
+  }
+  async closest(name:string|((f:AFile)=>any)):Promise<AFile|undefined> {
+    if (typeof name==="string"){
+      return this.closest(async (f:AFile)=>await f.rel(name).exists());
+    } else {
+      const f=async (f:AFile):Promise<AFile|undefined>=>{
+        const res=await name(f);
+        if (AFile.is(res))return res;
+        if (SFile.is(res))return res.async();
+        if (res) return f;
+        return undefined;
+      }
+      for(let p:AFile|null=this;p;p=p.up()) {
+        const r=await f(p);
+        if (r) return r;
+      }
+      return undefined;
+    }
+  }
+  relPath(base:SFile|AFile) {
+    const {fs,path}=this.#fs.deps;
+    const body=path.relative(base.path(), this.#path).replace(/\\/g,"/");
+    return (
+      body+(body.length && this.isDirPath()?"/":"")
+    ).replace(/\/+$/,"/");
+  }
+  rel(relPath:string) {
+    const {fs,path}=this.#fs.deps;
+    if(path.isAbsolute(relPath)) throw new Error(`rel: ${relPath} should be relative`);
+    return this.clone(path.join(this.#path, relPath));
+  }
+  _directorify() {
+    if (!this.isDirPath()) this.#path+="/";
+  }
+  copyFrom(src:SFile|AFile) {
+    return src.async().copyTo(this);
+  }
+  toString(){return this.#path;}
+  async copyTo(dst:SFile|AFile, options={followlink:false as boolean}):Promise<AFile>{
+    let src:AFile=this;
+    let adst=dst.async();
+    const followlink=options.followlink;
+    if (followlink) {
+      src=await src.resolveLink();
+      adst=await adst.resolveLink();
+    }
+    const nofollow=!followlink;
+    const srcIsDir=await src.isDir({nofollow});
+    if (srcIsDir && !await adst.exists()) {
+      await adst.mkdir();
+    }
+    let dstIsDir=await adst.isDir({nofollow});
+    if (!srcIsDir && dstIsDir) {
+      adst=adst.rel(src.name());
+      await adst.assertRegularFile();
+      dstIsDir=false;
+    }
+    if (srcIsDir && !dstIsDir) {
+      throw new Error("Cannot move dir "+src.path()+" to file "+adst.path());
+    } else if (!srcIsDir && !dstIsDir) {
+      if (await src.isLink()) src=await src.resolveLink();
+      if (await adst.isLink()) adst=await adst.resolveLink();
+      const c=await src.getContent();
+      await adst.setContent(c);
+    } else {
+      if (!srcIsDir || !dstIsDir) throw new Error(src+" to "+adst+" should both dirs");
+      for (let e of await src.listFiles({cache:1000})) {
+        await e.copyTo(adst.rel(e.relPath(src)),options);
+      }
+    }
+    adst.cache.clear();
+    return adst;
+  }
+  moveFrom(src:SFile|AFile) {
+    return src.async().moveTo(this);
+  }
+  async moveTo(dst:SFile|AFile):Promise<AFile> {
+    const {fs,path}=this.#fs.deps;
+    const adst=dst.async();
+    await fs.promises.rename(this.#path, adst.path());
+    this.cache.clear();
+    return adst;
+  }
+  contentType() {
+    return addEncoding(this.#fs.mimeTypes[this.ext()]||"application/octet-stream");
+  }
+  isText(){
+    return this.contentType().match(/^text\//);
+  }
+  async assertDir(options={nofollow:false as boolean}):Promise<void> {
+    if (!await this.isDir(options)) {
+      throw new Error(`${this.path()} is not a directory`);
+    }
+  }
+  async assertRegularFile(options={nofollow:false as boolean}):Promise<void> {
+    if (await this.isDir(options)) {
+      throw new Error(`${this.path()} is a directory`);
+    }
+  }
+  async parseExcludeOption(options:DirectoryOptions={}):Promise<{excludesF:(f:AFile)=>boolean}> {
+    await this.assertDir();
+    const excludes=options.excludes;
+    if (typeof excludes==="function") {
+      return {excludesF:(f)=>excludes(f.sync())};
+    } else if (typeof excludes==="object") {
+      const pathR=this.path();
+      let nex:ExcludeHash={};
+      const cpath=(e:string)=>{
+        e=truncSep(e);
+        if (e.startsWith("/")) {
+          nex[e]=1;
+        } else {
+          nex[pathR+e]=1;
+        }
+      };
+      if (Array.isArray(excludes)) {
+        for (let e of excludes) cpath(e);
+      } else {
+        for (let e in excludes) cpath(e);
+      }
+      return {excludesF:(f)=>nex[truncSep(f.path())]};
+    } else {
+      return {excludesF:()=>false};
+    }
+  }
+  async each(callback:(file:AFile)=>void|Promise<void>, options?:DirectoryOptions):Promise<this> {
+    await this.assertDir();
+    const files = await this.listFiles(options);
+    for (const file of files) {
+      await callback(file);
+    }
+    return this;
+  }
+  recursive():AsyncGenerator<AFile>;
+  recursive(options:RecursiveOptions):AsyncGenerator<AFile>;
+  recursive(callback:(file:AFile)=>any, options:RecursiveOptions):Promise<this>;
+  recursive(callback:(file:AFile)=>any):Promise<this>;
+  recursive(a1?:((file:AFile)=>any)|RecursiveOptions, a2?:RecursiveOptions) {
+    const options:RecursiveOptions=a2 ?? ((a1 && typeof a1==="object") ? a1 : {});
+    const callback:((file:AFile)=>any)|undefined=(a1 && typeof a1==="function" ? a1 : undefined);
+    const self=this;
+    async function* gen() {
+      await self.assertDir();
+      const includeDir=options.includeDir;
+      async function* walk(dir:AFile):AsyncGenerator<AFile> {
+        if (includeDir) {
+          yield dir;
+        }
+        for (const file of await dir.listFiles(options)) {
+          if (await file.isLink()){
+            const r=await file.resolveLink();
+            const isd=await r.isDir({nofollow:true});
+            if (options.followlink && isd) {
+              yield* walk(r);
+            } else if (!isd || includeDir) {
+              if (options.followlink) yield r;
+              else yield file;
+            }
+          } else if (await file.isDir({nofollow:true})) {
+            yield* walk(file);
+          } else {
+            yield file;
+          }
+        }
+      }
+      yield* walk(self);
+    }
+    if (callback) {
+      return (async ()=>{
+        for await (let file of gen()) {
+          await callback(file);
+        }
+        return this;
+      })();
+    }
+    return gen();
+  }
+  async getDirTree(_options:Partial<GetDirTreeOptions>={}):Promise<DirTree> {
+    let dest = {} as DirTree;
+    const style= _options.style || "flat-absolute";
+    const excludes= _options.excludes || [];
+    const base= _options.base || this.sync();
+    let excludesFunc:ExcludeFunction;
+    if (typeof excludes==="function") {
+      excludesFunc=excludes as ExcludeFunction;
+    } else {
+      const excludesAry = (excludes || []).map(truncSep);
+      const defaultExcludes=(file:SFile)=>{
+        const fullPath = file.path();
+        const relPath = file.relPath(base);
+        switch (style) {
+          case "flat-relative":
+          case "hierarchical":
+            if (excludesAry.indexOf(truncSep(relPath)) >= 0) {
+              return true;
+            }
+            break;
+          case "flat-absolute":
+            if (excludesAry.indexOf(truncSep(fullPath)) >= 0) {
+              return true;
+            }
+            break;
+        }
+        return false;
+      };
+      excludesFunc=defaultExcludes;
+    }
+    const newoptions:GetDirTreeOptions = {style, base, excludes:excludesFunc};
+    const files = await this.listFiles({...newoptions, cache:true});
+    if (style == "no-recursive") {
+      for (let file of files) {
+        dest[file.name()] = await file.getMetaInfo({nofollow:true});
+      }
+      return dest;
+    }
+    for (let file of files) {
+      const meta = await file.getMetaInfo({nofollow:true});
+      if (await file.isDir({nofollow:true})) {
+        switch (style) {
+          case "flat-absolute":
+          case "flat-relative":
+            Object.assign(dest, await file.getDirTree(newoptions));
+            break;
+          case "hierarchical":
+            dest[addSep(file.name())] = await file.getDirTree(newoptions);
+            break;
+        }
+      } else {
+        const fullPath = file.path();
+        const relPath = file.relPath(base);
+        switch (style) {
+          case "flat-absolute":
+            dest[fullPath] = meta;
+            break;
+          case "flat-relative":
+            dest[relPath] = meta;
+            break;
+          case "hierarchical":
+            dest[file.name()] = meta;
+            break;
+        }
+      }
+    }
+    return dest;
+  }
+  async listFiles(options:ListFilesOptions={cache:1000}):Promise<AFile[]> {
+    const {fs,path}=this.#fs.deps;
+    const {excludesF}=await this.parseExcludeOption(options);
+    if (options.cache || options.cache===0) {
+      if (!await this.isDir({nofollow:true}) && !await this.isLink()) {
+        throw new Error(this+' is not a directory');
+      }
+      const res=[] as AFile[];
+      for (let dirent of await fs.promises.readdir(this.#path, {withFileTypes: true})) {
+        const file=this.rel(dirent.name);
+        if (excludesF(file)) continue;
+        const extra=(dirent as any).extra;
+        const lstat=(extra && extra.lstat? extra.lstat : await file.lstat()) as Stats;
+        file.cache.set({lstat});
+        file.cache.setDuration(typeof options.cache==="boolean"?0:options.cache);
+        if (lstat.isDirectory()) {
+          file._directorify();
+        }
+        res.push(file);
+      }
+      return res;
+    }
+    if (!await this.isDir()) {
+      throw new Error(this+' is not a directory');
+    }
+    const files=await fs.promises.readdir(this.#path);
+    return files.map(file => this.rel(file)).filter(f=>!excludesF(f));
+  }
+  async ls(options?:DirectoryOptions):Promise<string[]> {
+    return Promise.all((await this.listFiles(options)).map(async f=>(await f.fixSep()).name()));
+  }
+  async fixSep():Promise<this>{
+    const lstat=await this.lstat();
+    if (lstat.isSymbolicLink()) {
+      const link=await this.resolveLink();
+      if (await link.isDir()) {
+        this._directorify();
+      }
+    } else if (lstat.isDirectory()) {
+      this._directorify();
+    }
+    return this;
+  }
+  async mkdir():Promise<this> {
+    const {fs,path}=this.#fs.deps;
+    await fs.promises.mkdir(this.#path, { recursive: true });
+    this.cache.clear();
+    return this;
+  }
+  async prepareDir():Promise<boolean|AFile>{
+    const p=this.up();
+    if (!p) throw new Error(`Cannot prepare dir for '/'`);
+    return await p.exists() || await p.mkdir();
+  }
+  contains(child:SFile|AFile|string) {
+    return SFile.containsPath(this.path(), typeof child==="string"? child:child.path());
+  }
+  async isLink():Promise<string|undefined> {
+    const {fs,path}=this.#fs.deps;
+    if (!await this.exists()) return undefined;
+    const stat=await fs.promises.lstat(this.#path);
+    if(!stat.isSymbolicLink())return undefined;
+    return fs.promises.realpath(this.#path);
+  }
+  async link(to:SFile|AFile|string):Promise<this> {
+    const {fs,path}=this.#fs.deps;
+    await fs.promises.symlink(typeof to==="string"?to:to.path(), this.#path, "junction");
+    this.cache.clear();
+    return this;
+  }
+  async resolveLink():Promise<AFile> {
+    const {fs,path}=this.#fs.deps;
+    return this.clone(await fs.promises.realpath(this.#path));
+  }
+  watch(listener:(eventType:string, file:AFile, meta:MetaInfo|undefined)=>void):{remove:()=>void};
+  watch(options:any, listener:(eventType:string, file:AFile, meta:MetaInfo|undefined)=>void):{remove:()=>void};
+  watch(_1?:any, _2?:any) {
+    let options={},listener:(eventType:string, file:AFile, meta:MetaInfo|undefined)=>void=function(){};
+    if (typeof _1==="object") options=_1;
+    if (typeof _2==="object") options=_2;
+    if (typeof _1==="function") listener=_1;
+    if (typeof _2==="function") listener=_2;
+    const {fs,path}=this.#fs.deps;
+    const watcher=fs.watch(this.#path, options,async (eventType:string, filename:string|null) => {
+      const file=filename? (
+        this.#fs.deps.path.isAbsolute(filename) ?
+          this.clone(filename) :
+          this.rel(filename)
+      ):this;
+      listener(eventType, file, await file.exists() ? await file.getMetaInfo() : undefined);
+    });
+    return {
+      remove:()=>{
+        watcher.close();
+      }
+    };
+  }
+  async isReadOnly():Promise<boolean> {
+    const {fs}=this.#fs.deps;
+    try {
+      await fs.promises.access(this.path(), fs.constants.R_OK);
+    } catch (err) {
+      return false;
+    }
+    try {
+      await fs.promises.access(this.path(), fs.constants.W_OK);
+      return false;
+    } catch (err) {
+      return true;
+    }
+  }
 }
