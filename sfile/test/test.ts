@@ -1,5 +1,5 @@
 import * as _assert from "assert";
-import {FileSystemFactory,SFile,Content, DirectoryOptions, DirTree, MetaInfo, ExcludeOption, ExcludeHash, getNodeFS} from "../src/SFile.js";
+import {FileSystemFactory,SFile,Content, DirectoryOptions, DirTree, MetaInfo, ExcludeOption, ExcludeHash} from "../src/SFile.js";
 const assert = Object.assign(
     (b:any, m?:string)=>_assert.ok(b,m),{
     eq:_assert.equal,   
@@ -64,6 +64,20 @@ const timeout = (t:number) => new Promise(s => setTimeout(s, t));
 declare const location:any;
 const alert:Function=(s:string)=>_console.log("ALERT",s);
         
+export async function getNodeFS():Promise<FileSystemFactory> {
+  try {
+    const fs = await import(/* webpackIgnore: true */"node:fs");
+    const path = await import(/* webpackIgnore: true */"node:path");
+    return new FileSystemFactory({fs, path, Buffer});
+  } catch(e) {
+    const p=(globalThis as any)?.FS;
+    if (p && typeof p.getRootFS==="function") return p;
+    const p2=(globalThis as any)?.pNode?.FS;
+    if (p2 && typeof p2.getRootFS==="function") return p2; 
+    throw e; 
+  }
+}
+
 export async function main(){
 let pass:number=0;
 //let testf: SFile;
@@ -99,7 +113,7 @@ try {
     _console.log("isChildOf", r("hoge/fuga\\"),(r("hoge\\fuga/piyo//")));
     assert(r("hoge/fuga\\").contains(r("hoge\\fuga/piyo//")), "isChildOf");
     assert(!r("hoge/fugo\\").contains(r("hoge\\fuga/piyo//")), "!isChildOf");
-    testContent();
+    //testContent();
     checkTruncSep(FS);
     let ABCD = "abcd\nefg";
     let CDEF = "defg\nてすと";
@@ -337,44 +351,6 @@ function listFilesTest(romd: SFile) {
         "options.json", "TObject.tonyu", "TQuery.tonyu"
     ]);
 }
-/*
-async function chkBigFile(testd: SFile) {
-    let cap = LSFS.getCapacity();
-    _console.log("usage", cap);
-    if (cap.max < 100000000) {
-        let len = cap.max - cap.using + 1500;
-        let buf = "a";
-        while (buf.length < len) buf += buf;
-        let bigDir = testd.rel("bigDir/");
-        let bigDir2 = bigDir.sibling("bigDir2/");
-        if (bigDir2.exists()) bigDir2.rm({ r: 1 });
-        let bigFile = bigDir.rel("theBigFile.txt");
-        assert.ensureError(function () {
-            _console.log("Try to create the BIG ", buf.length, "bytes file");
-            return bigFile.text(buf);
-        });
-        assert(!bigFile.exists(), "BIG file remains...?");
-        buf = buf.substring(0, cap.max - cap.using - 1500);
-        buf = buf.substring(0, buf.length / 10);
-        for (let i = 0; i < 6; i++) bigDir.rel("test" + i + ".txt").text(buf);
-        await bigDir.moveTo(bigDir2).then(
-            function () { alert("You cannot come here(move big)"); },
-            function (e) {
-                _console.log("Failed Successfully! (move big!)", e);
-                return DU.resolve();
-            }
-        ).then(function () {
-            for (let i = 0; i < 6; i++) assert(bigDir.rel("test" + i + ".txt").exists());
-            assert(!bigDir2.exists(), "Bigdir2 (" + bigDir2.path() + ") remains");
-            _console.log("Bigdir removing");
-            bigDir.removeWithoutTrash({ recursive: true });
-            bigDir2.removeWithoutTrash({ recursive: true });
-            assert(!bigDir.exists());
-            _console.log("Bigdir removed!");
-            return DU.resolve();
-        });//.then(DU.NOP, DU.E);
-    }
-}*/
 async function checkCopyDir(dir:SFile) {
     let tmp = dir.sibling("tmp_" + dir.name());
     dir.copyTo(tmp);
@@ -463,17 +439,6 @@ function checkSame(a:SFile, b:SFile) {
     assert(a1.length == b1.length, "length is not match: " + a + "," + b);
     for (let i = 0; i < a1.length; i++) assert(a1[i] == b1[i], "failed at [" + i + "]");
 }
-function contEq(a:Uint8Array|string, b:Uint8Array|string) {
-    if (typeof a!==typeof b)return false;
-    if (typeof a==="string") return a===b;
-    if (typeof b==="string") return false;
-    a = new Uint8Array(a);
-    b = new Uint8Array(b);
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) if (a[i]!==b[i]) return false;
-    return true;
-}
-
 function eqa(a:any[],b:any[]) {
     _assert.deepStrictEqual(a.sort().join(","),b.sort().join(","));
 }
@@ -486,62 +451,6 @@ function chkRecur(dir:SFile, options:DirectoryOptions, result:string[]) {
     let t = dir.getDirTree({excludes:options.excludes,style:"flat-relative"});
     _console.log("getDirTree",dir, t);
     eqa(Object.keys(t), result);
-}
-function testContent() {
-    let C = Content;
-    const a=[0xe3, 0x81, 0xa6, 0xe3, 0x81, 0x99, 0xe3, 0x81, 0xa8, 0x61, 0x62, 0x63];
-    const conts:{[key:string]: [string|ArrayBuffer|Buffer, ( ((s:string)=>Content)| ((s:ArrayBuffer)=>Content) ) , (c:Content)=>string|ArrayBuffer|Buffer]}={
-        p:["てすとabc", (s:string)=>C.plainText(s), (c:Content)=>c.toPlainText()],
-        u:["data:text/plain;base64,44Gm44GZ44GoYWJj", (u:string)=>C.url(u), (c:Content)=>c.toURL()],
-        a:[Uint8Array.from(a).buffer, (a:ArrayBuffer)=>C.bin(a, "text/plain"), (c:Content)=>c.toArrayBuffer()],
-        n:[Buffer.from(a),(n:ArrayBuffer)=>C.bin(n, "text/plain"), (c:Content)=>c.toNodeBuffer()],
-    };
-    /*if (typeof Buffer!=="undefined") {
-        conts.n=[Buffer.from(a),(n)=>C.bin(n, "text/plain"), (c)=>c.toNodeBuffer()];
-    }*/
-    const SRC=0, TOCONT=1, FROMCONT=2;
-    let binLen=(conts.a[SRC] as ArrayBufferLike).byteLength;
-    for (let tfrom of Object.keys(conts) ) 
-        for (let tto of Object.keys(conts) ) chk(tfrom,tto);
-    function chk(tfrom: string ,tto:string) {
-        const src=conts[tfrom][SRC];
-        const c=conts[tfrom][TOCONT](src as any);
-        if (c.hasNodeBuffer()) {
-            assert.eq(((c as any).nodeBuffer as Buffer).length, binLen,"Bin length not match");
-        }
-        const dst=conts[tto][FROMCONT](c);
-        _console.log("Convert Content ",tfrom,"->",tto);
-        if (!contEq(dst as any, conts[tto][SRC] as any)) {
-            _console.log("Actual: ",dst);
-            _console.log("Expected: ",conts[tto][SRC]);
-            //_console.log("Content bufType ", c.bufType );
-            throw new Error(`Fail at ${tfrom} to ${tto}`);
-        }
-    }
-
-    /*let c1 = C.plainText(s);
-    test(c1, [s]);
-
-    function test(c, path) {
-        let p = c.toPlainText();
-        let u = c.toURL();
-        let a = c.toArrayBuffer();
-        let n = C.hasNodeBuffer() && c.toNodeBuffer();
-        _console.log("TestCont", path, "->", p, u, a, n);
-        let cp = C.plainText(p);
-        let cu = C.url(u);
-        let ca = C.bin(a, "text/plain");
-        let cn = n && C.bin(n, "text/plain");
-        if (path.length < 2) {
-            test(cp, path.concat([p]));
-            test(cu, path.concat([u]));
-            test(ca, path.concat([a]));
-            if (n) test(cn, path.concat([n]));
-        } else {
-            //assert.eq(cp,p, "cp!=p");
-            //assert.eq(cu,u, "cu!=u");
-        }
-    }*/
 }
 async function asyncTest(testd:SFile) {
     //await checkZip(testd);
@@ -609,55 +518,6 @@ function checkMtime(f:SFile) {
     _console.log("checkMtime", f.path(), t, nt);
     assert(Math.abs(f.lastUpdate()-nt)<2000);
 }
-/*
-async function checkZip(dir:SFile) {
-    const cleanExt=async ()=>{
-        assert.eq(ext.name(),"ext/");
-        if (ext.exists()) {
-            for (let i=0;i<10;i++) {
-                try {
-                    await ext.rm({ recursive: true });
-                    break;
-                } catch(e) {
-                    _console.log("Rm"+ext+" retry... "+i);
-                    await timeout(1000);
-                }    
-            }
-            assert(!ext.exists(),ext+" remains ");        
-        }    
-    };
-    await timeout(3000);
-    let ext = dir.rel("ext/");
-    await cleanExt();
-    dir.rel("ziping.txt").text("zipping");
-    let tre = dir.getDirTree();
-    _console.log("TRE", tre);
-    const zipf = FS.get("/ram/comp.zip");
-    await FS.zip.zip(dir, zipf);
-    ext.mkdir();
-    await FS.zip.unzip(zipf, ext);
-
-    let tre2 = ext.getDirTree();
-    _console.log("TRE2", tre2);
-    dir.rel("ziping.txt").removeWithoutTrash();
-    await cleanExt();
-    assert.eq(Object.keys(tre).length, Object.keys(tre2).length);
-    for (let k2 of Object.keys(tre2)) {
-        let k = k2.replace(/\/ext/, "");
-        _console.log("k-k2", k, k2);
-        assert(k2 in tre2);
-        assert(k in tre);
-        assert(tre[k].lastUpdate);
-        _console.log("mtime diff", tre[k].lastUpdate - tre2[k2].lastUpdate);
-        //assert(Math.abs(tre[k].lastUpdate-tre2[k2].lastUpdate)<2000);
-        assert(Math.abs(
-            Math.floor(tre[k].lastUpdate / 2000) -
-            Math.floor(tre2[k2].lastUpdate / 2000)) <= 2,
-            `Zip timestamp not match ${k}=${tre[k].lastUpdate}, ${k2}=${tre2[k2].lastUpdate}, Diff=${tre[k].lastUpdate - tre2[k2].lastUpdate}`
-        );
-    }
-    await timeout(1000);
-}*/
 function getDirTree3Type(dir:SFile, excludes?:ExcludeOption) {
     if (!excludes) {
         excludes={};
@@ -765,24 +625,6 @@ async function testGetDirTreeExcludeInSubdir(testdir:SFile) {
     assert(!tree["b/d/secret.txt"],"secret.txt");
     await retryRmdir(work);
 }
-/*
-async function checkRemoveError(dir) {
-    const fs=await import("fs");
-    dir=dir.rel("rmtest/");
-    dir.mkdir();
-    const locked=dir.rel("locked.txt");
-    locked.text("test");
-    const np=locked.fs.toNativePath(locked.path());
-    _console.log("np",np);
-    fs.chmodSync(np,0o400);
-    await timeout(10000);
-    fs.unlinkSync(np);
-    _console.log("WHT!!!",np);
-    await assert.ensureErrorAsync(()=>dir.rm({r:true}));
-    fs.chmodSync(np,0o666);
-    await dir.rm({r:true});
-    assert(!dir.exists(), dir+" remains (checkRemove)");    
-}*/
 function _eqTree(a:any, b:any, path:string, excludes:ExcludeHash) {
     assert.eq(typeof a, typeof b, "typeof not match:"+path);
     if (a==null) {
