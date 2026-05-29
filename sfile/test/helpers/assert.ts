@@ -4,6 +4,14 @@ export const assert = Object.assign(
   (b:any, m?:string)=>_assert.ok(b,m),{
   eq:_assert.equal,
   ensureError: _assert.throws,
+  async ensureErrorAsync(f: ()=>Promise<any>, m?:string) {
+    try {
+      await f();
+    } catch(e) {
+      return;
+    }
+    throw new Error(m ?? "Expected an error to be thrown, but none was.");
+  },
   func<T extends (...args: any[]) => any>(f:T) {
     return ((...args:Parameters<T>):ReturnType<T>=>{
       try {

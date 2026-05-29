@@ -22,6 +22,7 @@ export async function runPass1({fixture, romd, ramd, testf, cleanups}:Pass1Conte
   assert(!testd.exists(), testd+" exists");
   testd.mkdir();
   assert(testd.exists());
+  await testDirFileOverlap(testd.rel("dirfile/"));
 
   // Record the temporary directory for pass2 and check basic mtime behavior.
   let d = new Date().getTime();
@@ -59,6 +60,18 @@ export async function runPass1({fixture, romd, ramd, testf, cleanups}:Pass1Conte
   //------------
   await moveTest(testd);
   await asyncTest(testd);
+}
+
+async function testDirFileOverlap(base: SFile) {
+  base.mkdir();
+  const dir = base.rel("dir");
+  dir.mkdir();
+  const file = base.rel("file");
+  file.text("ABCD");
+  assert.ensureError(() => dir.getContent());
+  assert.ensureError(() => dir.text("ABCD"));
+  assert.ensureError(() => file.listFiles());
+  base.rm({ r: true });
 }
 
 type SymlinkTestContext=Pick<Pass1Context, "ramd"|"romd"|"fixture">;
