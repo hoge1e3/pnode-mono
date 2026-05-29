@@ -66,7 +66,7 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   });
   sf.rel("test3.txt").rm();
   assert(!testd.rel("test3.txt").exists());
-  ramd.rel("toste.txt").text("fuga");
+  //ramd.rel("toste.txt").text("fuga");
   ramd.rel("files/").link(testd);
   eqa(ramd.rel("files/").ls(), testd.ls() );
   eqa(ramd.rel("files/").listFiles().map(f=>f.name()),
@@ -200,10 +200,13 @@ async function asyncTest(testd:SFile) {
 }
 
 async function checkWatch(testd:SFile) {
+  const watchd = testd.rel("watch/");
+  if (watchd.exists()) await retryRmdir(watchd);
+  watchd.mkdir();
   const buf = [] as string[];
   const isN=false
-  const w = testd.watch((type, f) => {
-    buf.push(type + ":" + f.relPath(testd));
+  const w = watchd.watch((type, f) => {
+    buf.push(type + ":" + f.relPath(watchd));
   });
   async function buildScrap(f:SFile, t = "aaa") {
     _console.log("buildScrap",f.path());
@@ -214,9 +217,10 @@ async function checkWatch(testd:SFile) {
     await timeout(100);
     f.rm();
   }
-  await buildScrap(testd.rel("hogefuga.txt"));
+  await buildScrap(watchd.rel("hogefuga.txt"));
   w.remove();
-  await buildScrap(testd.rel("hogefuga.txt"));
+  await buildScrap(watchd.rel("hogefuga.txt"));
+  await retryRmdir(watchd);
   _console.log("checkWatch", buf);
   const uniq=(a:string[])=>{
     const has=new Set();
