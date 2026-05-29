@@ -24,11 +24,15 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   assert(testd.exists());
   let d = new Date().getTime();
   testf.text(testd.path());
+  
+  // Record the temporary directory for pass2 and check basic mtime behavior.
   _console.log("lastUpdate", testf.lastUpdate(), d);
   assert(Math.abs(testf.lastUpdate() - d) <= 1000);
   testd.rel("test.txt").text(ABCD);
   assert(romd.rel("Actor.tonyu").text().length > 0);
   testd.rel("sub/test2.txt").text(romd.rel("Actor.tonyu").text());
+
+  // Directory listing and recursive traversal checks against the fixture tree.
   listFilesTest(romd);
   await testGetDirTreeExcludeInSubdir(testd);
   let tncnt:string[] = [];
@@ -38,7 +42,6 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   });
   _console.log(".tonyu files in ", romd, tncnt);
   assert.eq(tncnt.length, 46, "tncnt: "+tncnt.length+"!==46");
-
   tncnt = [];
   romd.recursive(pushtn, {
     excludes:(f:SFile)=>!f.isDir(),
@@ -46,7 +49,6 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   });
   _console.log("directories in ", romd, tncnt);
   assert.eq(tncnt.length, 9, "tncnt");
-
   tncnt = [];
   let exdirs = ["physics/", "event/", "graphics/"];
   romd.recursive(pushtn, { excludes: exdirs });
@@ -54,6 +56,7 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   assert.eq(tncnt.length, 33, "tncnt 33!="+tncnt.length);
   checkGetDirTree(romd);
 
+  // Relative path, policy restriction, and symlink-like link behavior.
   assert(testd.rel("sub/").exists());
   assert(fixture.rel("testdir/sub/").exists());
   assert(testf.exists());
@@ -66,7 +69,6 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   });
   sf.rel("test3.txt").rm();
   assert(!testd.rel("test3.txt").exists());
-  //ramd.rel("toste.txt").text("fuga");
   ramd.rel("files/").link(testd);
   eqa(ramd.rel("files/").ls(), testd.ls() );
   eqa(ramd.rel("files/").listFiles().map(f=>f.name()),
@@ -82,14 +84,19 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   ramd.rel("files/").rm();
   assert(testd.exists());
   _console.log("fixturels", fixture.ls());
+
+  // Prepare fixture files used by later copy and pass2 checks.
   fixture.rel("sub/test2.txt").text(romd.rel("Actor.tonyu").text());
   fixture.rel("test.txt").text(ABCD);
 
+  // Copy file content through each supported content API.
   fixture.rel("sub/test.png").copyTo(testd.rel("test.png"));
   await checkCopyFile(fixture.rel("Tonyu/Projects/MapTest/Test.tonyu"));
   await checkCopyFile(fixture.rel("Tonyu/Projects/MapTest/images/park.png"));
   await checkCopyFile(testd.rel("test.png"));
   testd.rel("test.png").rm();
+
+  // Append text and verify explicit mtime updates.
   let beforeAppend = fixture.rel("Tonyu/Projects/MapTest/Test.tonyu");
   let appended = fixture.rel("Tonyu/Projects/MapTest/TestApp.tonyu");
   beforeAppend.copyTo(appended);
@@ -99,11 +106,13 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   checkMtime(appended);
   checkGetDirTree_nw(fixture);
 
+  // Reuse test.txt for text copy checks, then restore it for pass2.
   _console.log("text.txt", testd.rel("test.txt").path(), testd.rel("test.txt").text());
   testd.rel("test.txt").text(romd.rel("Actor.tonyu").text() + ABCD + CDEF);
   await checkCopyFile(testd.rel("test.txt"));
   testd.rel("test.txt").text(ABCD);
 
+  // Blob round-trip  
   let f = testd.rel("hoge.txt");
   f.text("hogefuga");
   checkMtime(f);
@@ -115,6 +124,7 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   _console.log("BLOB read done!", f.name(), tmp.name());
   tmp.rm();
   f.rm();
+  //------------
   await moveTest(testd);
   await asyncTest(testd);
 }
