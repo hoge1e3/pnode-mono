@@ -16,16 +16,17 @@ export type Pass1Options={
 };
 
 export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups}:Pass1Options) {
+  // Setup
   const testd = fixture.rel(/*Math.random()*/"testdir" + "/");
   cleanups.push(async ()=>testd.exists() && await retryRmdir(testd));
   _console.log("Enter", testd);
   assert(!testd.exists(), testd+" exists");
   testd.mkdir();
   assert(testd.exists());
+
+  // Record the temporary directory for pass2 and check basic mtime behavior.
   let d = new Date().getTime();
   testf.text(testd.path());
-  
-  // Record the temporary directory for pass2 and check basic mtime behavior.
   _console.log("lastUpdate", testf.lastUpdate(), d);
   assert(Math.abs(testf.lastUpdate() - d) <= 1000);
   testd.rel("test.txt").text(ABCD);
@@ -33,7 +34,7 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   testd.rel("sub/test2.txt").text(romd.rel("Actor.tonyu").text());
 
   // Directory listing and recursive traversal checks against the fixture tree.
-  listFilesTest(romd);
+  await listFilesTest(romd);
   await testGetDirTreeExcludeInSubdir(testd);
   let tncnt:string[] = [];
   const pushtn=(f:SFile)=>tncnt.push(f.relPath(romd));
@@ -91,13 +92,10 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
 
   // Copy file content through each supported content API.
   await checkContentCopyApis(fixture, testd);
-
   // Append text and verify explicit mtime updates.
-  checkAppendAndMtime(fixture);
-
+  await checkAppendAndMtime(fixture);
   // Reuse test.txt for text copy checks, then restore it for pass2.
   await checkTextCopyAndRestore(testd, romd, ABCD, CDEF);
-
   // Blob round-trip  
   await checkBlobRoundTrip(testd);
   //------------
@@ -113,7 +111,7 @@ async function checkContentCopyApis(fixture:SFile, testd:SFile) {
   testd.rel("test.png").rm();
 }
 
-function checkAppendAndMtime(fixture:SFile) {
+async function checkAppendAndMtime(fixture:SFile) {
   let beforeAppend = fixture.rel("Tonyu/Projects/MapTest/Test.tonyu");
   let appended = fixture.rel("Tonyu/Projects/MapTest/TestApp.tonyu");
   beforeAppend.copyTo(appended);
@@ -165,7 +163,7 @@ async function moveTest(testd:SFile) {
   _assert.deepStrictEqual(res1,res2);
 }
 
-function listFilesTest(romd: SFile) {
+async function listFilesTest(romd: SFile) {
   eqa(romd.listFiles().map(f=>f.name()), [
     "event/","graphics/","js/",
     "physics/", "sound/","t1/","thread/", "ui/",
