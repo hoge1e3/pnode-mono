@@ -90,13 +90,30 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   fixture.rel("test.txt").text(ABCD);
 
   // Copy file content through each supported content API.
+  await checkContentCopyApis(fixture, testd);
+
+  // Append text and verify explicit mtime updates.
+  checkAppendAndMtime(fixture);
+
+  // Reuse test.txt for text copy checks, then restore it for pass2.
+  await checkTextCopyAndRestore(testd, romd, ABCD, CDEF);
+
+  // Blob round-trip  
+  await checkBlobRoundTrip(testd);
+  //------------
+  await moveTest(testd);
+  await asyncTest(testd);
+}
+
+async function checkContentCopyApis(fixture:SFile, testd:SFile) {
   fixture.rel("sub/test.png").copyTo(testd.rel("test.png"));
   await checkCopyFile(fixture.rel("Tonyu/Projects/MapTest/Test.tonyu"));
   await checkCopyFile(fixture.rel("Tonyu/Projects/MapTest/images/park.png"));
   await checkCopyFile(testd.rel("test.png"));
   testd.rel("test.png").rm();
+}
 
-  // Append text and verify explicit mtime updates.
+function checkAppendAndMtime(fixture:SFile) {
   let beforeAppend = fixture.rel("Tonyu/Projects/MapTest/Test.tonyu");
   let appended = fixture.rel("Tonyu/Projects/MapTest/TestApp.tonyu");
   beforeAppend.copyTo(appended);
@@ -105,14 +122,16 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   assert.eq(beforeAppend.text() + apText, appended.text());
   checkMtime(appended);
   checkGetDirTree_nw(fixture);
+}
 
-  // Reuse test.txt for text copy checks, then restore it for pass2.
+async function checkTextCopyAndRestore(testd:SFile, romd:SFile, ABCD:string, CDEF:string) {
   _console.log("text.txt", testd.rel("test.txt").path(), testd.rel("test.txt").text());
   testd.rel("test.txt").text(romd.rel("Actor.tonyu").text() + ABCD + CDEF);
   await checkCopyFile(testd.rel("test.txt"));
   testd.rel("test.txt").text(ABCD);
+}
 
-  // Blob round-trip  
+async function checkBlobRoundTrip(testd:SFile) {
   let f = testd.rel("hoge.txt");
   f.text("hogefuga");
   checkMtime(f);
@@ -124,9 +143,6 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   _console.log("BLOB read done!", f.name(), tmp.name());
   tmp.rm();
   f.rm();
-  //------------
-  await moveTest(testd);
-  await asyncTest(testd);
 }
 
 async function moveTest(testd:SFile) {
