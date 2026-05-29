@@ -4,18 +4,17 @@ import {_console} from "./helpers/logging.js";
 import {timeout} from "./helpers/async.js";
 import {checkSame, eqa, retryRmdir} from "./helpers/files.js";
 import {checkGetDirTree, checkGetDirTree_nw, testGetDirTreeExcludeInSubdir} from "./helpers/dirTree.js";
+import {ABCD, CDEF} from "./helpers/constants.js";
 
 export type Pass1Context={
   fixture:SFile,
   romd:SFile,
   ramd:SFile,
   testf:SFile,
-  ABCD:string,
-  CDEF:string,
   cleanups:(()=>Promise<any>)[],
 };
 
-export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups}:Pass1Context) {
+export async function runPass1({fixture, romd, ramd, testf, cleanups}:Pass1Context) {
   // Setup
   const testd = fixture.rel(/*Math.random()*/"testdir" + "/");
   cleanups.push(async ()=>testd.exists() && await retryRmdir(testd));
@@ -42,8 +41,8 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   assert(testd.rel("sub/").exists());
   assert(fixture.rel("testdir/sub/").exists());
   assert(testf.exists());
-  await testPolicy(testd, {ABCD, CDEF});
-  await testSymlinks(testd, {ramd, ABCD, romd, fixture});
+  await testPolicy(testd);
+  await testSymlinks(testd, {ramd, romd, fixture});
 
   // Prepare fixture files used by later copy and pass2 checks.
   fixture.rel("sub/test2.txt").text(romd.rel("Actor.tonyu").text());
@@ -54,7 +53,7 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   // Append text and verify explicit mtime updates.
   await checkAppendAndMtime(fixture);
   // Reuse test.txt for text copy checks, then restore it for pass2.
-  await checkTextCopyAndRestore(testd, {romd, ABCD, CDEF});
+  await checkTextCopyAndRestore(testd, romd);
   // Blob round-trip  
   await checkBlobRoundTrip(testd);
   //------------
@@ -62,8 +61,8 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   await asyncTest(testd);
 }
 
-type SymlinkTestContext=Pick<Pass1Context, "ramd"|"ABCD"|"romd"|"fixture">;
-async function testSymlinks(testd: SFile, {ramd, ABCD, romd, fixture}:SymlinkTestContext) {
+type SymlinkTestContext=Pick<Pass1Context, "ramd"|"romd"|"fixture">;
+async function testSymlinks(testd: SFile, {ramd, romd, fixture}:SymlinkTestContext) {
   ramd.rel("files/").link(testd);
   eqa(ramd.rel("files/").ls(), testd.ls());
   eqa(ramd.rel("files/").listFiles().map(f => f.name()),
@@ -81,8 +80,7 @@ async function testSymlinks(testd: SFile, {ramd, ABCD, romd, fixture}:SymlinkTes
   _console.log("fixturels", fixture.ls());
 }
 
-type PolicyTestContext=Pick<Pass1Context, "ABCD"|"CDEF">;
-async function testPolicy(testd:SFile,{ABCD, CDEF}:PolicyTestContext) {
+async function testPolicy(testd:SFile) {
   let sf = testd.setPolicy({ topDir: testd });
   assert(sf.rel("test.txt").text() == ABCD);
   sf.rel("test3.txt").text(CDEF);
@@ -136,7 +134,7 @@ async function checkAppendAndMtime(fixture:SFile) {
   checkGetDirTree_nw(fixture);
 }
 
-async function checkTextCopyAndRestore(testd:SFile, {romd,ABCD,CDEF}:Pick<Pass1Context,"romd"|"ABCD"|"CDEF">) {
+async function checkTextCopyAndRestore(testd:SFile, romd:SFile) {
   _console.log("text.txt", testd.rel("test.txt").path(), testd.rel("test.txt").text());
   testd.rel("test.txt").text(romd.rel("Actor.tonyu").text() + ABCD + CDEF);
   await checkCopyFile(testd.rel("test.txt"));

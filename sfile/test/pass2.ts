@@ -2,16 +2,16 @@ import {DirectoryOptions, FileSystemFactory, SFile} from "../src/SFile.js";
 import {assert} from "./helpers/assert.js";
 import {_console} from "./helpers/logging.js";
 import {eqa, retryRmdir} from "./helpers/files.js";
+import {ABCD} from "./helpers/constants.js";
 
 export type Pass2Options={
   FS:FileSystemFactory,
   fixture:SFile,
   romd:SFile,
   testf:SFile,
-  ABCD:string,
 };
 
-export async function runPass2({FS, fixture, romd, testf, ABCD}:Pass2Options) {
+export async function runPass2({FS, fixture, romd, testf}:Pass2Options) {
   const testd = FS.get(testf.text());
   assert(testd.name().match(/^testdir/));
   assert(testd.exists());

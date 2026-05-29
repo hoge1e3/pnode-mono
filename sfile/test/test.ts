@@ -37,8 +37,6 @@ export async function main(){
         const r=fixture.rel.bind(fixture);
         const romd=r("rom/");
         checkPathMethods(FS, fixture);
-        let ABCD = "abcd\nefg";
-        let CDEF = "defg\nてすと";
         let ramd = fixture.rel("ram/");
         if(ramd.exists()) await retryRmdir(ramd);
         ramd.mkdir();
@@ -47,11 +45,11 @@ export async function main(){
         if (!testf.exists()) {
             pass=1;
             _console.log("Test #", pass);
-            await runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups});
+            await runPass1({fixture, romd, ramd, testf, cleanups});
         } else {
             pass=2;
             _console.log("Test #", pass);
-            await runPass2({FS, fixture, romd, testf, ABCD});
+            await runPass2({FS, fixture, romd, testf});
         }
         if(ramd.exists()) await retryRmdir(ramd);
         console.log("passed", "#"+pass);
