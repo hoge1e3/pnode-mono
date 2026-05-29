@@ -36,6 +36,13 @@ export function eqa(a:any[],b:any[]) {
   _assert.deepStrictEqual(a.sort().join(","),b.sort().join(","));
 }
 
+export async function checkCopyDir(dir:SFile) {
+  let tmp = dir.sibling("tmp_" + dir.name());
+  dir.copyTo(tmp);
+  checkSameDir(dir, tmp);
+  await retryRmdir(tmp);
+}
+
 export async function retryRmdir(dir: SFile) {
   for (let i=0;i<10;i++) {
     try {
