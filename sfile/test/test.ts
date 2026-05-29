@@ -34,8 +34,7 @@ export async function main(){
         const fixtureInSameDir=here.sibling("fixture/");
         const fixture=fixtureInSameDir.exists() ? fixtureInSameDir : here.sibling("../../test/fixture/");
         await checkCopyDir(fixture);
-        const r=fixture.rel.bind(fixture);
-        const romd=r("rom/");
+        const romd=fixture.rel("rom/");
         checkPathMethods(FS, fixture);
         let ramd = fixture.rel("ram/");
         if(ramd.exists()) await retryRmdir(ramd);
