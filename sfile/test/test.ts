@@ -33,17 +33,12 @@ export async function main(){
         const here=FS.get(import.meta.url);
         const fixtureInSameDir=here.sibling("fixture/");
         const fixture=fixtureInSameDir.exists() ? fixtureInSameDir : here.sibling("../../test/fixture/");
-        //const fixture=topDir;//.setPolicy({topDir});
         await checkCopyDir(fixture);
-        //let cd =fixture;
         const r=fixture.rel.bind(fixture);
         const romd=r("rom/");
         checkPathMethods(FS, fixture);
         let ABCD = "abcd\nefg";
         let CDEF = "defg\nてすと";
-        //obsolate: ls does not enum mounted dirs
-        //assert(r.indexOf("rom/")>=0, r);
-        //let romd = root.rel("rom/");
         let ramd = fixture.rel("ram/");
         if(ramd.exists()) await retryRmdir(ramd);
         ramd.mkdir();

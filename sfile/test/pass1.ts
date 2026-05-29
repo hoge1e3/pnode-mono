@@ -5,7 +5,7 @@ import {timeout} from "./helpers/async.js";
 import {checkSame, eqa, retryRmdir} from "./helpers/files.js";
 import {checkGetDirTree, checkGetDirTree_nw, testGetDirTreeExcludeInSubdir} from "./helpers/dirTree.js";
 
-export type Pass1Options={
+export type Pass1Context={
   fixture:SFile,
   romd:SFile,
   ramd:SFile,
@@ -15,7 +15,7 @@ export type Pass1Options={
   cleanups:(()=>Promise<any>)[],
 };
 
-export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups}:Pass1Options) {
+export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups}:Pass1Context) {
   // Setup
   const testd = fixture.rel(/*Math.random()*/"testdir" + "/");
   cleanups.push(async ()=>testd.exists() && await retryRmdir(testd));
@@ -36,44 +36,38 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   // Directory listing and recursive traversal checks against the fixture tree.
   await listFilesTest(romd);
   await testGetDirTreeExcludeInSubdir(testd);
-  let tncnt:string[] = [];
-  const pushtn=(f:SFile)=>tncnt.push(f.relPath(romd));
-  romd.recursive(pushtn, {
-    excludes:(f:SFile)=>(!f.isDir() && f.ext() !== ".tonyu")
-  });
-  _console.log(".tonyu files in ", romd, tncnt);
-  assert.eq(tncnt.length, 46, "tncnt: "+tncnt.length+"!==46");
-  tncnt = [];
-  romd.recursive(pushtn, {
-    excludes:(f:SFile)=>!f.isDir(),
-    includeDir:true,
-  });
-  _console.log("directories in ", romd, tncnt);
-  assert.eq(tncnt.length, 9, "tncnt");
-  tncnt = [];
-  let exdirs = ["physics/", "event/", "graphics/"];
-  romd.recursive(pushtn, { excludes: exdirs });
-  _console.log("files in ", romd+" except", exdirs, tncnt);
-  assert.eq(tncnt.length, 33, "tncnt 33!="+tncnt.length);
-  checkGetDirTree(romd);
+  await checkTonyuFixtures(romd);
 
-  // Relative path, policy restriction, and symlink-like link behavior.
+  // Relative path, symlink-like link behavior.
   assert(testd.rel("sub/").exists());
   assert(fixture.rel("testdir/sub/").exists());
   assert(testf.exists());
-  let sf = testd.setPolicy({ topDir: testd });
-  assert(sf.rel("test.txt").text() == ABCD);
-  sf.rel("test3.txt").text(CDEF);
-  assert.eq(sf.rel("test3.txt").text(), CDEF);
-  assert.ensureError(function () {
-    sf.rel("../rom/Actor.tonyu").text();
-  });
-  sf.rel("test3.txt").rm();
-  assert(!testd.rel("test3.txt").exists());
+  await testPolicy(testd, {ABCD, CDEF});
+  await testSymlinks(testd, {ramd, ABCD, romd, fixture});
+
+  // Prepare fixture files used by later copy and pass2 checks.
+  fixture.rel("sub/test2.txt").text(romd.rel("Actor.tonyu").text());
+  fixture.rel("test.txt").text(ABCD);
+
+  // Copy file content through each supported content API.
+  await checkContentCopyApis(testd, fixture);
+  // Append text and verify explicit mtime updates.
+  await checkAppendAndMtime(fixture);
+  // Reuse test.txt for text copy checks, then restore it for pass2.
+  await checkTextCopyAndRestore(testd, {romd, ABCD, CDEF});
+  // Blob round-trip  
+  await checkBlobRoundTrip(testd);
+  //------------
+  await moveTest(testd);
+  await asyncTest(testd);
+}
+
+type SymlinkTestContext=Pick<Pass1Context, "ramd"|"ABCD"|"romd"|"fixture">;
+async function testSymlinks(testd: SFile, {ramd, ABCD, romd, fixture}:SymlinkTestContext) {
   ramd.rel("files/").link(testd);
-  eqa(ramd.rel("files/").ls(), testd.ls() );
-  eqa(ramd.rel("files/").listFiles().map(f=>f.name()),
-       testd.listFiles().map(f=>f.name()) );
+  eqa(ramd.rel("files/").ls(), testd.ls());
+  eqa(ramd.rel("files/").listFiles().map(f => f.name()),
+    testd.listFiles().map(f => f.name()));
   testd.rel("sub/del.txt").text("DEL");
   assert(testd.rel("sub/del.txt").exists(), "del.txt not exists");
   assert(ramd.rel("files/").isLink());
@@ -85,25 +79,45 @@ export async function runPass1({fixture, romd, ramd, testf, ABCD, CDEF, cleanups
   ramd.rel("files/").rm();
   assert(testd.exists());
   _console.log("fixturels", fixture.ls());
-
-  // Prepare fixture files used by later copy and pass2 checks.
-  fixture.rel("sub/test2.txt").text(romd.rel("Actor.tonyu").text());
-  fixture.rel("test.txt").text(ABCD);
-
-  // Copy file content through each supported content API.
-  await checkContentCopyApis(fixture, testd);
-  // Append text and verify explicit mtime updates.
-  await checkAppendAndMtime(fixture);
-  // Reuse test.txt for text copy checks, then restore it for pass2.
-  await checkTextCopyAndRestore(testd, romd, ABCD, CDEF);
-  // Blob round-trip  
-  await checkBlobRoundTrip(testd);
-  //------------
-  await moveTest(testd);
-  await asyncTest(testd);
 }
 
-async function checkContentCopyApis(fixture:SFile, testd:SFile) {
+type PolicyTestContext=Pick<Pass1Context, "ABCD"|"CDEF">;
+async function testPolicy(testd:SFile,{ABCD, CDEF}:PolicyTestContext) {
+  let sf = testd.setPolicy({ topDir: testd });
+  assert(sf.rel("test.txt").text() == ABCD);
+  sf.rel("test3.txt").text(CDEF);
+  assert.eq(sf.rel("test3.txt").text(), CDEF);
+  assert.ensureError(function () {
+    sf.rel("../rom/Actor.tonyu").text();
+  });
+  sf.rel("test3.txt").rm();
+  assert(!testd.rel("test3.txt").exists());
+}
+
+async function checkTonyuFixtures(romd: SFile) {
+  let tncnt: string[] = [];
+  const pushtn = (f: SFile) => tncnt.push(f.relPath(romd));
+  romd.recursive(pushtn, {
+    excludes: (f: SFile) => (!f.isDir() && f.ext() !== ".tonyu")
+  });
+  _console.log(".tonyu files in ", romd, tncnt);
+  assert.eq(tncnt.length, 46, "tncnt: " + tncnt.length + "!==46");
+  tncnt = [];
+  romd.recursive(pushtn, {
+    excludes: (f: SFile) => !f.isDir(),
+    includeDir: true,
+  });
+  _console.log("directories in ", romd, tncnt);
+  assert.eq(tncnt.length, 9, "tncnt");
+  tncnt = [];
+  let exdirs = ["physics/", "event/", "graphics/"];
+  romd.recursive(pushtn, { excludes: exdirs });
+  _console.log("files in ", romd + " except", exdirs, tncnt);
+  assert.eq(tncnt.length, 33, "tncnt 33!=" + tncnt.length);
+  checkGetDirTree(romd);
+}
+
+async function checkContentCopyApis(testd:SFile, fixture:SFile) {
   fixture.rel("sub/test.png").copyTo(testd.rel("test.png"));
   await checkCopyFile(fixture.rel("Tonyu/Projects/MapTest/Test.tonyu"));
   await checkCopyFile(fixture.rel("Tonyu/Projects/MapTest/images/park.png"));
@@ -122,7 +136,7 @@ async function checkAppendAndMtime(fixture:SFile) {
   checkGetDirTree_nw(fixture);
 }
 
-async function checkTextCopyAndRestore(testd:SFile, romd:SFile, ABCD:string, CDEF:string) {
+async function checkTextCopyAndRestore(testd:SFile, {romd,ABCD,CDEF}:Pick<Pass1Context,"romd"|"ABCD"|"CDEF">) {
   _console.log("text.txt", testd.rel("test.txt").path(), testd.rel("test.txt").text());
   testd.rel("test.txt").text(romd.rel("Actor.tonyu").text() + ABCD + CDEF);
   await checkCopyFile(testd.rel("test.txt"));
