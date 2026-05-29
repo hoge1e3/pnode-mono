@@ -3,10 +3,15 @@ import {_console, alert} from "./helpers/logging.js";
 import {timeout} from "./helpers/async.js";
 import {checkCopyDir, retryRmdir} from "./helpers/files.js";
 import {checkPathMethods} from "./helpers/path.js";
-import {runPass1} from "./pass1.js";
-import {runPass2} from "./pass2.js";
+import type {Pass1Context} from "./pass1.js";
+import type {Pass2Context} from "./pass2.js";
 declare const location:any;
-        
+
+export type MainOptions = {
+  runPass1: (ctx: Pass1Context) => Promise<void>;
+  runPass2: (ctx: Pass2Context) => Promise<void>;
+};
+
 export async function getNodeFS():Promise<FileSystemFactory> {
   try {
     const fs = await import(/* webpackIgnore: true */"node:fs");
@@ -21,9 +26,13 @@ export async function getNodeFS():Promise<FileSystemFactory> {
   }
 }
 
-export async function main(){
+export async function main(options: MainOptions){
+    const {
+      runPass1,
+      runPass2,
+    } = options;
+
     let pass:number=0;
-    //let testf: SFile;
     const cleanups=[] as (()=>Promise<any>)[];
     try {
         const FS=await getNodeFS();
@@ -40,7 +49,7 @@ export async function main(){
         if(ramd.exists()) await retryRmdir(ramd);
         ramd.mkdir();
         const testf = fixture.rel("testfn.txt");
-        cleanups.push(async ()=>testf.exists() && testf.rm());  
+        cleanups.push(async ()=>testf.exists() && testf.rm());
         if (!testf.exists()) {
             pass=1;
             _console.log("Test #", pass);
@@ -70,6 +79,3 @@ export async function main(){
         console.log("Unknown tags:", JSON.stringify(_console.unknownlist,null,2))
     }
 }
-// of main()
-//(globalThis as any).main=main;
-main();

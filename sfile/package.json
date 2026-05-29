@@ -9,7 +9,7 @@
     "tsc": "npx tsc",
     "webpack": "echo no-webpack-needed",
     "webpack-dev": "echo no-webpack-needed",
-    "test": "npm run tsc && node js/test/test.js && node js/test/test.js"
+    "test": "npm run tsc && node js/test/stest.js && node js/test/stest.js && node js/test/atest.js && node js/test/atest.js"
   },
   "repository": {
     "type": "git",

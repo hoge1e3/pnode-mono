@@ -1,4 +1,4 @@
-import {Content, SFile} from "../../src/SFile.js";
+import {Content, SFile, AFile} from "../../src/SFile.js";
 import {assert, _assert} from "./assert.js";
 import {_console} from "./logging.js";
 import {timeout} from "./async.js";
@@ -41,6 +41,13 @@ export async function checkCopyDir(dir:SFile) {
   dir.copyTo(tmp);
   checkSameDir(dir, tmp);
   await retryRmdir(tmp);
+}
+
+export async function checkCopyDirAsync(dir: AFile) {
+  let tmp = dir.sibling("tmp_" + dir.name());
+  await dir.copyTo(tmp);
+  checkSameDir(tmp.sync(), dir.sync());
+  await retryRmdir(tmp.sync());
 }
 
 export async function retryRmdir(dir: SFile) {
