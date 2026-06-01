@@ -1,4 +1,4 @@
-import {FileSystemFactory} from "../src/SFile.js";
+import {FileSystemFactory, SFile} from "../src/SFile.js";
 import {_console, alert} from "./helpers/logging.js";
 import {timeout} from "./helpers/async.js";
 import {checkCopyDir, retryRmdir} from "./helpers/files.js";
@@ -7,9 +7,20 @@ import type {Pass1Context} from "./pass1.js";
 import type {Pass2Context} from "./pass2.js";
 declare const location:any;
 
+
+export type SetupResult = {
+  fixture: SFile;
+  romd: SFile;
+  ramd: SFile;
+  testf: SFile;
+  cleanups: (()=>Promise<any>)[];
+};
+
 export type MainOptions = {
   runPass1: (ctx: Pass1Context) => Promise<void>;
   runPass2: (ctx: Pass2Context) => Promise<void>;
+  /** Override fixture setup. Return SetupResult to skip default setup. */
+  setup?: (FS: FileSystemFactory, cleanups: (()=>Promise<any>)[]) => Promise<SetupResult>;
 };
 
 export async function getNodeFS():Promise<FileSystemFactory> {
@@ -26,44 +37,48 @@ export async function getNodeFS():Promise<FileSystemFactory> {
   }
 }
 
-export async function main(options: MainOptions){
-    const {
-      runPass1,
-      runPass2,
-    } = options;
+export async function defaultSetup(FS: FileSystemFactory, cleanups: (()=>Promise<any>)[]): Promise<SetupResult> {
+  const here = FS.get(import.meta.url);
+  const fixtureInSameDir = here.sibling("fixture/");
+  const fixture = fixtureInSameDir.exists() ? fixtureInSameDir : here.sibling("../../test/fixture/");
+  await checkCopyDir(fixture);
+  const romd = fixture.rel("rom/");
+  checkPathMethods(FS, fixture);
+  let ramd = fixture.rel("ram/");
+  if (ramd.exists()) await retryRmdir(ramd);
+  ramd.mkdir();
+  const testf = fixture.rel("testfn.txt");
+  cleanups.push(async () => testf.exists() && testf.rm());
+  return {fixture, romd, ramd, testf, cleanups};
+}
 
-    let pass:number=0;
-    const cleanups=[] as (()=>Promise<any>)[];
+export async function main(options: MainOptions) {
+    const {runPass1, runPass2, setup = defaultSetup} = options;
+
+    let pass: number = 0;
+    const cleanups = [] as (()=>Promise<any>)[];
     try {
-        const FS=await getNodeFS();
-        _console.log("metaurl",import.meta.url);
+        const FS = await getNodeFS();
+        _console.log("metaurl", import.meta.url);
         console.log(FS.get("/"));
         console.log(FS.get("/").up());
-        const here=FS.get(import.meta.url);
-        const fixtureInSameDir=here.sibling("fixture/");
-        const fixture=fixtureInSameDir.exists() ? fixtureInSameDir : here.sibling("../../test/fixture/");
-        await checkCopyDir(fixture);
-        const romd=fixture.rel("rom/");
-        checkPathMethods(FS, fixture);
-        let ramd = fixture.rel("ram/");
-        if(ramd.exists()) await retryRmdir(ramd);
-        ramd.mkdir();
-        const testf = fixture.rel("testfn.txt");
-        cleanups.push(async ()=>testf.exists() && testf.rm());
+
+        const {fixture, romd, ramd, testf} = await setup(FS, cleanups);
+
         if (!testf.exists()) {
-            pass=1;
+            pass = 1;
             _console.log("Test #", pass);
             await runPass1({fixture, romd, ramd, testf, cleanups});
         } else {
-            pass=2;
+            pass = 2;
             _console.log("Test #", pass);
             await runPass2({FS, fixture, romd, testf});
         }
-        if(ramd.exists()) await retryRmdir(ramd);
+        if (ramd.exists()) await retryRmdir(ramd);
         console.log("passed", "#"+pass);
-        if (pass==1) {
+        if (pass == 1) {
             await timeout(1000);
-            if (typeof location!=="undefined" && !location.href.match(/pass1only/)) location.reload();
+            if (typeof location !== "undefined" && !location.href.match(/pass1only/)) location.reload();
         } else {
             console.log("All test passed.");
         }
@@ -76,6 +91,6 @@ export async function main(options: MainOptions){
         } catch (e) {
             _console.error(e);
         }
-        console.log("Unknown tags:", JSON.stringify(_console.unknownlist,null,2))
+        console.log("Unknown tags:", JSON.stringify(_console.unknownlist,null,2));
     }
 }

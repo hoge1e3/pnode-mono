@@ -5,6 +5,7 @@ const entries={
   esm: "./src/index.js",
   umd: "./src/index.js",
   test: "./test/test.js",
+  new_test: "./test/new-test.js",
   test_worker: "./test/worker.js",
 };
 const outputs={
@@ -24,13 +25,18 @@ const outputs={
     path: `${__dirname}/test`,
     filename: "test.webpack.js",
   },
+  new_test: {
+    libraryTarget: 'module',
+    path: `${__dirname}/test`,
+    filename: "new-test.webpack.js",
+  },
   test_worker: {
     libraryTarget: 'module',
     path: `${__dirname}/test`,
     filename: "worker.webpack.js",
   },
 };
-module.exports = (env,argv)=>["esm","umd","test","test_worker"].map((type)=>({
+module.exports = (env,argv)=>["esm","umd","test","new_test","test_worker"].map((type)=>({
     // モード値を production に設定すると最適化された状態で、
     // development に設定するとソースマップ有効でJSファイルが出力される
     mode: 'development',
