@@ -38,6 +38,7 @@
     "webcartridge"
   ],
   "devDependencies": {
+    "assert": "^2.1.0",
     "@hoge1e3/is-plain-object": "^1.0.0",
     "@hoge1e3/sfile": "^2.0.1",
     "@hoge1e3/sfile-node": "^1.5.2",

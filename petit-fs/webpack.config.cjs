@@ -69,8 +69,15 @@ module.exports = (env,argv)=>["esm","umd","test","new_test","test_worker"].map((
         extensions: [
             '.js',
         ],
+        fallback: {
+            assert: require.resolve('assert/'),
+            process: require.resolve('process/browser'),
+        },
     },
     plugins: [
-      new IgnoreDynamicRequire()
+      new IgnoreDynamicRequire(),
+      new (require('webpack').ProvidePlugin)({
+        process: require.resolve('process/browser'),
+      }),
     ],
 }));

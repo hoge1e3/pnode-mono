@@ -14,6 +14,8 @@ export type SetupResult = {
   ramd: SFile;
   testf: SFile;
   cleanups: (()=>Promise<any>)[];
+  /** If true, skip retryRmdir(ramd) after tests (e.g. ramd is a mount point) */
+  skipRamdCleanup?: boolean;
 };
 
 export type MainOptions = {
@@ -21,6 +23,8 @@ export type MainOptions = {
   runPass2: (ctx: Pass2Context) => Promise<void>;
   /** Override fixture setup. Return SetupResult to skip default setup. */
   setup?: (FS: FileSystemFactory, cleanups: (()=>Promise<any>)[]) => Promise<SetupResult>;
+  /** Provide a pre-built FileSystemFactory (e.g. in browser environments) */
+  FS?: FileSystemFactory;
 };
 
 export async function getNodeFS():Promise<FileSystemFactory> {
@@ -53,17 +57,17 @@ export async function defaultSetup(FS: FileSystemFactory, cleanups: (()=>Promise
 }
 
 export async function main(options: MainOptions) {
-    const {runPass1, runPass2, setup = defaultSetup} = options;
+    const {runPass1, runPass2, setup = defaultSetup, FS: optFS} = options;
 
     let pass: number = 0;
     const cleanups = [] as (()=>Promise<any>)[];
     try {
-        const FS = await getNodeFS();
+        const FS = optFS ?? await getNodeFS();
         _console.log("metaurl", import.meta.url);
         console.log(FS.get("/"));
         console.log(FS.get("/").up());
 
-        const {fixture, romd, ramd, testf} = await setup(FS, cleanups);
+        const {fixture, romd, ramd, testf, skipRamdCleanup} = await setup(FS, cleanups);
 
         if (!testf.exists()) {
             pass = 1;
@@ -74,7 +78,7 @@ export async function main(options: MainOptions) {
             _console.log("Test #", pass);
             await runPass2({FS, fixture, romd, testf});
         }
-        if (ramd.exists()) await retryRmdir(ramd);
+        if (!skipRamdCleanup && ramd.exists()) await retryRmdir(ramd);
         console.log("passed", "#"+pass);
         if (pass == 1) {
             await timeout(1000);
@@ -83,7 +87,7 @@ export async function main(options: MainOptions) {
             console.log("All test passed.");
         }
     } catch (e) {
-        process.exitCode = 1;
+        if (typeof process!=="undefined")process.exitCode = 1;
         console.log((e as any).stack);
         alert("#"+pass+" test Failed. "+e);
         try {

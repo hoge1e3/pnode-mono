@@ -1,16 +1,17 @@
-import {fs, dev, path} from "../src/index.js";
+import {fs, dev, path, process} from "../src/index.js";
 import * as jszip from "jszip";
 import {FileSystemFactory, SFile} from "@hoge1e3/sfile/js/src/SFile.js";
 import {main, SetupResult} from "@hoge1e3/sfile/js/test/test.js";
 import {runPass1} from "@hoge1e3/sfile/js/test/pass1.js";
 import {runPass2} from "@hoge1e3/sfile/js/test/pass2.js";
+import { Buffer } from "buffer";
 
-/*const FS = new FileSystemFactory({
+const FS = new FileSystemFactory({
     fs:   fs as unknown as typeof import("fs"),
     path: path as unknown as typeof import("path"),
     Buffer,
-});*/
-
+});
+(globalThis as any).process=process;
 async function extractFixture(to: SFile) {
     const resp = await fetch("fixture.zip");
     const buf = await resp.arrayBuffer();
@@ -43,17 +44,18 @@ async function setup(FS: FileSystemFactory, cleanups: (()=>Promise<any>)[]): Pro
     let ramd = root.rel("ram/");
     fs.mkdirSync("/ram/", {recursive: true});
     dev.mountSync("/ram/", "ram");
-    if (ramd.exists()) ramd.rm({r: true});
-    ramd.mkdir();
+    //if (ramd.exists()) ramd.rm({r: true});
+    //ramd.mkdir();
 
     const testf = fixture.rel("testfn.txt");
     cleanups.push(async () => testf.exists() && testf.rm());
 
-    return {fixture, romd, ramd, testf, cleanups};
+    return {fixture, romd, ramd, testf, cleanups, skipRamdCleanup: true};
 }
 
 main({
     runPass1,
     runPass2,
-    setup: (FS, cleanups) => setup(FS, cleanups),
+    FS,
+    setup: (_FS, cleanups) => setup(_FS, cleanups),
 });
