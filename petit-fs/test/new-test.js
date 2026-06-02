@@ -33,6 +33,7 @@ async function extractFixture(to) {
 async function setup(FS, cleanups) {
     fs.mkdirSync("/zip/", { recursive: true });
     dev.mountSync("/zip/", "ram");
+    globalThis.FS = FS;
     const root = FS.get("/");
     const zipDir = root.rel("zip/");
     await extractFixture(zipDir);
@@ -43,7 +44,7 @@ async function setup(FS, cleanups) {
     dev.mountSync("/ram/", "ram");
     //if (ramd.exists()) ramd.rm({r: true});
     //ramd.mkdir();
-    const testf = fixture.rel("testfn.txt");
+    const testf = root.rel("testfn.txt");
     cleanups.push(async () => testf.exists() && testf.rm());
     return { fixture, romd, ramd, testf, cleanups, skipRamdCleanup: true };
 }
