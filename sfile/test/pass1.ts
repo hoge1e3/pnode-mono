@@ -7,6 +7,7 @@ import {checkGetDirTree, checkGetDirTree_nw, testGetDirTreeExcludeInSubdir} from
 import {ABCD, CDEF} from "./helpers/constants.js";
 
 export type Pass1Context={
+  testd: SFile,
   fixture:SFile,
   romd:SFile,
   ramd:SFile,
@@ -14,9 +15,9 @@ export type Pass1Context={
   cleanups:(()=>Promise<any>)[],
 };
 
-export async function runPass1({fixture, romd, ramd, testf, cleanups}:Pass1Context) {
+export async function runPass1({fixture, romd, ramd, testf, testd, cleanups}:Pass1Context) {
   // Setup
-  const testd = fixture.rel(/*Math.random()*/"testdir" + "/");
+  //const testd = fixture.rel(/*Math.random()*/"testdir" + "/");
   cleanups.push(async ()=>testd.exists() && await retryRmdir(testd));
   _console.log("Enter", testd);
   assert(!testd.exists(), testd+" exists");

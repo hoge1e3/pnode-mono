@@ -31,19 +31,25 @@ async function extractFixture(to) {
     }
 }
 async function setup(FS, cleanups) {
+    // Re-mount on every load (RAM mount is lost on reload)
     fs.mkdirSync("/zip/", { recursive: true });
-    dev.mountSync("/zip/", "ram");
+    try {
+        dev.mountSync("/zip/", "ram");
+    }
+    catch (e) { /* already mounted */ }
+    fs.mkdirSync("/ram/", { recursive: true });
+    try {
+        dev.mountSync("/ram/", "ram");
+    }
+    catch (e) { /* already mounted */ }
     globalThis.FS = FS;
     const root = FS.get("/");
     const zipDir = root.rel("zip/");
+    // Always re-extract fixture (RAM is volatile, lost on reload)
     await extractFixture(zipDir);
     const fixture = zipDir.rel("fixture/");
     const romd = fixture.rel("rom/");
-    let ramd = root.rel("ram/");
-    fs.mkdirSync("/ram/", { recursive: true });
-    dev.mountSync("/ram/", "ram");
-    //if (ramd.exists()) ramd.rm({r: true});
-    //ramd.mkdir();
+    const ramd = root.rel("ram/");
     const testf = root.rel("testfn.txt");
     cleanups.push(async () => testf.exists() && testf.rm());
     return { fixture, romd, ramd, testf, cleanups, skipRamdCleanup: true };
