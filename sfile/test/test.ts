@@ -13,6 +13,7 @@ export type SetupResult = {
   romd: SFile;
   ramd: SFile;
   testf: SFile;
+  testd: SFile;
   cleanups: (()=>Promise<any>)[];
   /** If true, skip retryRmdir(ramd) after tests (e.g. ramd is a mount point) */
   skipRamdCleanup?: boolean;
@@ -53,7 +54,8 @@ export async function defaultSetup(FS: FileSystemFactory, cleanups: (()=>Promise
   ramd.mkdir();
   const testf = fixture.rel("testfn.txt");
   cleanups.push(async () => testf.exists() && testf.rm());
-  return {fixture, romd, ramd, testf, cleanups};
+  const testd = fixture.rel(/*Math.random()*/"testdir" + "/");
+  return {fixture, romd, ramd, testf, testd, cleanups};
 }
 
 export async function main(options: MainOptions) {
@@ -67,12 +69,12 @@ export async function main(options: MainOptions) {
         console.log(FS.get("/"));
         console.log(FS.get("/").up());
 
-        const {fixture, romd, ramd, testf, skipRamdCleanup} = await setup(FS, cleanups);
+        const {fixture, romd, ramd, testf, testd, skipRamdCleanup} = await setup(FS, cleanups);
 
         if (!testf.exists()) {
             pass = 1;
             _console.log("Test #", pass);
-            await runPass1({fixture, romd, ramd, testf, cleanups});
+            await runPass1({fixture, romd, ramd, testd, testf, cleanups});
         } else {
             pass = 2;
             _console.log("Test #", pass);

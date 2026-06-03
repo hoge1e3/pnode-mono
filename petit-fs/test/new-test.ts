@@ -49,8 +49,8 @@ async function setup(FS: FileSystemFactory, cleanups: (()=>Promise<any>)[]): Pro
 
     const testf = root.rel("testfn.txt");
     cleanups.push(async () => testf.exists() && testf.rm());
-
-    return {fixture, romd, ramd, testf, cleanups, skipRamdCleanup: true};
+    const testd = root.rel(/*Math.random()*/"testdir" + "/");
+    return {fixture, romd, ramd, testf, testd, cleanups, skipRamdCleanup: true};
 }
 
 main({

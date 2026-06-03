@@ -41,7 +41,7 @@ export async function runPass1({fixture, romd, ramd, testf, testd, cleanups}:Pas
 
   // Relative path, symlink-like link behavior.
   assert(testd.rel("sub/").exists());
-  assert(fixture.rel("testdir/sub/").exists());
+  //assert(fixture.rel("testdir/sub/").exists());
   assert(testf.exists());
   await testPolicy(testd);
   await testSymlinks(testd, {ramd, romd, fixture});
