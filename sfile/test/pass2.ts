@@ -5,6 +5,7 @@ import {eqa, retryRmdir} from "./helpers/files.js";
 import {ABCD} from "./helpers/constants.js";
 
 export type Pass2Context={
+  root?: SFile,
   FS:FileSystemFactory,
   fixture:SFile,
   romd:SFile,

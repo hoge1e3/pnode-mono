@@ -4,3 +4,6 @@ node_modules
 idb
 pnode-bootloader
 wptest
+petit-fs/test/new-test.js
+petit-fs/test/new-test.js.map
+petit-fs/test/new-test.webpack.js

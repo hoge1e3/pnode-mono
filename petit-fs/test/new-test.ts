@@ -1,10 +1,12 @@
 import {fs, dev, path, process} from "../src/index.js";
 import * as jszip from "jszip";
-import {FileSystemFactory, SFile} from "@hoge1e3/sfile/js/src/SFile.js";
+import {FileSystemFactory, SFile,Content} from "@hoge1e3/sfile";
 import {main, SetupResult} from "@hoge1e3/sfile/js/test/test.js";
-import {runPass1} from "@hoge1e3/sfile/js/test/pass1.js";
-import {runPass2} from "@hoge1e3/sfile/js/test/pass2.js";
+import {Pass1Context, runPass1} from "@hoge1e3/sfile/js/test/pass1.js";
+import {Pass2Context, runPass2} from "@hoge1e3/sfile/js/test/pass2.js";
 import { Buffer } from "buffer";
+import {assert,_assert} from "@hoge1e3/sfile/js/test/helpers/assert.js";
+import {_console} from "@hoge1e3/sfile/js/test/helpers/logging.js";
 
 const FS = new FileSystemFactory({
     fs:   fs as unknown as typeof import("fs"),
@@ -37,6 +39,9 @@ async function setup(FS: FileSystemFactory, cleanups: (()=>Promise<any>)[]): Pro
     try { dev.mountSync("/zip/", "ram"); } catch(e) { /* already mounted */ }
     fs.mkdirSync("/ram/", {recursive: true});
     try { dev.mountSync("/ram/", "ram"); } catch(e) { /* already mounted */ }
+    await dev.mount("/idb/","idb");
+    await dev.mount("/lv3/","idb",{dbName:"lazy",lazy:3});
+
     (globalThis as any).FS=FS;
     const root = FS.get("/");
     const zipDir = root.rel("zip/");
@@ -50,12 +55,137 @@ async function setup(FS: FileSystemFactory, cleanups: (()=>Promise<any>)[]): Pro
     const testf = root.rel("testfn.txt");
     cleanups.push(async () => testf.exists() && testf.rm());
     const testd = root.rel(/*Math.random()*/"testdir" + "/");
-    return {fixture, romd, ramd, testf, testd, cleanups, skipRamdCleanup: true};
+    return {root, fixture, romd, ramd, testf, testd, cleanups, skipRamdCleanup: true};
 }
 
 main({
-    runPass1,
-    runPass2,
+    async runPass1(c:Pass1Context){
+        await runPass1(c);
+        if (!c.root) throw new Error("Pass1Context.root should be provided.");
+        await testIDB(1, c.fixture, c.root.rel("idb/pfs-test/"));
+    },
+    async runPass2(c:Pass2Context){
+        await runPass2(c);
+        if (!c.root) throw new Error("Pass2Context.root should be provided.");
+        await testIDB(2, c.fixture, c.root.rel("idb/pfs-test/"));        
+    },
     FS,
-    setup: (_FS, cleanups) => setup(_FS, cleanups),
+    setup,
 });
+async function testIDB(pass:number, fixture:SFile, idbdir:SFile) {
+    if (pass==1) {
+        fixture.copyTo(idbdir);
+        assert(idbdir.exists(), "IDBDir not exists.");
+        checkSameDirContents(fixture, idbdir);
+        testSymlink(idbdir.path());
+    } else {
+        checkSameDirContents(fixture, idbdir);
+        const README=idbdir.rel("README.txt");
+        const orig_README=README.text();
+        const p=new Promise((resolve, reject) => {
+            idbdir.watch((type, f) => {
+                _console.log("watch", type, f.path());
+                resolve(void 0);
+            });
+        });
+        new Worker("./worker.webpack.js",{type:"module"});
+        await p;
+        console.log("new README", README.text());   
+        assert.eq(README.text(), orig_README+"Hello");
+        // Cannot remove mountPoint. /idb/pfs-test is ok
+        //idbdir.rm({r:true});
+        for (let f of idbdir.listFiles()) f.rm({r:true});
+    }
+} 
+function testSymlink(baseDir: string) {
+    const assert_eq=(a:any,b:any,m:string)=>{
+        console.log("symlink:",a,b,m);
+        assert.eq(a,b,m);
+    }
+  const tmp = path.join(baseDir, "symlink-test");
+
+  // clean & prepare
+  fs.rmSync(tmp, { recursive: true, force: true });
+  fs.mkdirSync(tmp, { recursive: true });
+
+  const targetFile = path.join(tmp, "target.txt");
+  fs.writeFileSync(targetFile, "hello");
+
+  // === absolute symlink test ===
+  const absLink = path.join(tmp, "abs-link.txt");
+  fs.symlinkSync(targetFile, absLink);
+
+  const absRead = fs.readlinkSync(absLink);
+  assert_eq(absRead, targetFile, "absolute readlink should return absolute path");
+
+  const absContent = fs.readFileSync(absLink, "utf-8");
+  assert_eq(absContent, "hello", "absolute symlink should resolve to correct content");
+
+  // === relative symlink test ===
+  const relLink = path.join(tmp, "rel-link.txt");
+  const relPath = path.relative(tmp, targetFile);
+  fs.symlinkSync(relPath, relLink);
+  
+  const relRead = fs.readlinkSync(relLink);
+  assert_eq(relRead, relPath, "relative readlink should return relative path");
+
+  const relContent = fs.readFileSync(relLink, "utf-8");
+  assert_eq(relContent, "hello", "relative symlink should resolve to correct content");
+
+  // === double symlink resolution test ===
+  const link1 = path.join(tmp, "link1.txt");
+  const link2 = path.join(tmp, "link2.txt");
+
+  fs.symlinkSync(targetFile, link1); // link1 -> target
+  const relToLink1 = path.relative(tmp, link1);
+  fs.symlinkSync(relToLink1, link2); // link2 -> link1
+
+  const link2Read = fs.readlinkSync(link2);
+  assert_eq(link2Read, relToLink1, "link2 should point to link1");
+
+  const contentVia2Links = fs.readFileSync(link2, "utf-8");
+  assert_eq(contentVia2Links, "hello", "double symlink should resolve correctly");
+
+  // === realpath resolution ===
+  const resolved = fs.realpathSync(link2);
+  assert_eq(resolved, targetFile, "realpath should resolve to final target");
+
+  console.log("All symlink assertions passed.");
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+function checkSameDirContents(d1:SFile, d2:SFile) {
+    let ls1 = d1.ls();
+    let ls2 = d2.ls();
+    eqaSorted(ls1, ls2);
+    for (let name of ls1) {
+        const f1= d1.rel(name);
+        const f2= d2.rel(name);
+        assert((f1.isDir() === f2.isDir()), "isDirSame");
+        if (f1.isDir()) {
+            checkSameDirContents(f1, f2);
+        } else {
+            let c1 = f1.getContent();
+            let c2 = f2.getContent();
+            checkSameContent(c1, c2, `${f1} ${f2}`);
+        }
+    }
+}
+function checkSameContent(c1:Content, c2:Content, tag="checkSameContent") {
+    assert(contEq(
+        new Uint8Array(c1.toArrayBuffer()), 
+        new Uint8Array(c2.toArrayBuffer())), tag);
+}
+function contEq(a:Uint8Array|string, b:Uint8Array|string) {
+    if (typeof a!==typeof b)return false;
+    if (typeof a==="string") return a===b;
+    if (typeof b==="string") return false;
+    a = new Uint8Array(a);
+    b = new Uint8Array(b);
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i]!==b[i]) return false;
+    return true;
+}
+function eqaSorted(actual:any[],expected:any[]) {
+    _assert.deepStrictEqual(actual.sort(),expected.sort());
+}

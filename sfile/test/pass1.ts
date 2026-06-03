@@ -7,6 +7,7 @@ import {checkGetDirTree, checkGetDirTree_nw, testGetDirTreeExcludeInSubdir} from
 import {ABCD, CDEF} from "./helpers/constants.js";
 
 export type Pass1Context={
+  root?: SFile,
   testd: SFile,
   fixture:SFile,
   romd:SFile,

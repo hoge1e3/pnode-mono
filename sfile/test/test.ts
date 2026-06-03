@@ -9,6 +9,7 @@ declare const location:any;
 
 
 export type SetupResult = {
+  root?: SFile;
   fixture: SFile;
   romd: SFile;
   ramd: SFile;
@@ -69,16 +70,16 @@ export async function main(options: MainOptions) {
         console.log(FS.get("/"));
         console.log(FS.get("/").up());
 
-        const {fixture, romd, ramd, testf, testd, skipRamdCleanup} = await setup(FS, cleanups);
+        const {root, fixture, romd, ramd, testf, testd, skipRamdCleanup} = await setup(FS, cleanups);
 
         if (!testf.exists()) {
             pass = 1;
             _console.log("Test #", pass);
-            await runPass1({fixture, romd, ramd, testd, testf, cleanups});
+            await runPass1({root, fixture, romd, ramd, testd, testf, cleanups});
         } else {
             pass = 2;
             _console.log("Test #", pass);
-            await runPass2({FS, fixture, romd, testf});
+            await runPass2({root, FS, fixture, romd, testf});
         }
         if (!skipRamdCleanup && ramd.exists()) await retryRmdir(ramd);
         console.log("passed", "#"+pass);
