@@ -8,7 +8,7 @@ import {Pass1Context} from "./pass1.js";
 
 export async function runPass1(ctx: Pass1Context) {
   const fixture = ctx.fixture.async();
-  const romd    = ctx.romd.async();
+  const romd = fixture.rel("rom/").async();
   const ramd    = ctx.ramd.async();
   const testf   = ctx.testf.async();
   const {cleanups} = ctx;

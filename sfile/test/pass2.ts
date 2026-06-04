@@ -5,14 +5,13 @@ import {eqa, retryRmdir} from "./helpers/files.js";
 import {ABCD} from "./helpers/constants.js";
 
 export type Pass2Context={
-  root?: SFile,
   FS:FileSystemFactory,
   fixture:SFile,
-  romd:SFile,
   testf:SFile,
 };
 
-export async function runPass2({FS, fixture, romd, testf}:Pass2Context) {
+export async function runPass2({FS, fixture, testf}:Pass2Context) {
+  const romd = fixture.rel("rom/");
   const testd = FS.get(testf.text());
   assert(testd.name().match(/^testdir/));
   assert(testd.exists());

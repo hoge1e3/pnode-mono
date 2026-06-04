@@ -7,16 +7,16 @@ import {checkGetDirTree, checkGetDirTree_nw, testGetDirTreeExcludeInSubdir} from
 import {ABCD, CDEF} from "./helpers/constants.js";
 
 export type Pass1Context={
-  root?: SFile,
   testd: SFile,
   fixture:SFile,
-  romd:SFile,
+  //romd:SFile,
   ramd:SFile,
   testf:SFile,
   cleanups:(()=>Promise<any>)[],
 };
 
-export async function runPass1({fixture, romd, ramd, testf, testd, cleanups}:Pass1Context) {
+export async function runPass1({fixture, ramd, testf, testd, cleanups}:Pass1Context) {
+  const romd = fixture.rel("rom/");
   // Setup
   //const testd = fixture.rel(/*Math.random()*/"testdir" + "/");
   cleanups.push(async ()=>testd.exists() && await retryRmdir(testd));
@@ -76,7 +76,9 @@ async function testDirFileOverlap(base: SFile) {
   base.rm({ r: true });
 }
 
-type SymlinkTestContext=Pick<Pass1Context, "ramd"|"romd"|"fixture">;
+type SymlinkTestContext={
+  ramd:SFile, romd:SFile, fixture:SFile
+};
 async function testSymlinks(testd: SFile, {ramd, romd, fixture}:SymlinkTestContext) {
   ramd.rel("files/").link(testd);
   eqa(ramd.rel("files/").ls(), testd.ls());

@@ -9,9 +9,7 @@ declare const location:any;
 
 
 export type SetupResult = {
-  root?: SFile;
   fixture: SFile;
-  romd: SFile;
   ramd: SFile;
   testf: SFile;
   testd: SFile;
@@ -48,7 +46,7 @@ export async function defaultSetup(FS: FileSystemFactory, cleanups: (()=>Promise
   const fixtureInSameDir = here.sibling("fixture/");
   const fixture = fixtureInSameDir.exists() ? fixtureInSameDir : here.sibling("../../test/fixture/");
   await checkCopyDir(fixture);
-  const romd = fixture.rel("rom/");
+  //const romd = fixture.rel("rom/");
   checkPathMethods(FS, fixture);
   let ramd = fixture.rel("ram/");
   if (ramd.exists()) await retryRmdir(ramd);
@@ -56,7 +54,7 @@ export async function defaultSetup(FS: FileSystemFactory, cleanups: (()=>Promise
   const testf = fixture.rel("testfn.txt");
   cleanups.push(async () => testf.exists() && testf.rm());
   const testd = fixture.rel(/*Math.random()*/"testdir" + "/");
-  return {fixture, romd, ramd, testf, testd, cleanups};
+  return {fixture, ramd, testf, testd, cleanups};
 }
 
 export async function main(options: MainOptions) {
@@ -70,16 +68,16 @@ export async function main(options: MainOptions) {
         console.log(FS.get("/"));
         console.log(FS.get("/").up());
 
-        const {root, fixture, romd, ramd, testf, testd, skipRamdCleanup} = await setup(FS, cleanups);
+        const {fixture, ramd, testf, testd, skipRamdCleanup} = await setup(FS, cleanups);
 
         if (!testf.exists()) {
             pass = 1;
             _console.log("Test #", pass);
-            await runPass1({root, fixture, romd, ramd, testd, testf, cleanups});
+            await runPass1({ fixture, ramd, testd, testf, cleanups});
         } else {
             pass = 2;
             _console.log("Test #", pass);
-            await runPass2({root, FS, fixture, romd, testf});
+            await runPass2({ FS, fixture, testf});
         }
         if (!skipRamdCleanup && ramd.exists()) await retryRmdir(ramd);
         console.log("passed", "#"+pass);

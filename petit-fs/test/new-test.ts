@@ -1,4 +1,4 @@
-import {fs, dev, path, process} from "../src/index.js";
+import {fs, dev, path, process, LSFS} from "../src/index.js";
 import * as jszip from "jszip";
 import {FileSystemFactory, SFile,Content} from "@hoge1e3/sfile";
 import {main, SetupResult} from "@hoge1e3/sfile/js/test/test.js";
@@ -7,6 +7,7 @@ import {Pass2Context, runPass2} from "@hoge1e3/sfile/js/test/pass2.js";
 import { Buffer } from "buffer";
 import {assert,_assert} from "@hoge1e3/sfile/js/test/helpers/assert.js";
 import {_console} from "@hoge1e3/sfile/js/test/helpers/logging.js";
+import { toCanonicalPath } from "../src/pathUtil2.js";
 
 const FS = new FileSystemFactory({
     fs:   fs as unknown as typeof import("fs"),
@@ -32,7 +33,6 @@ async function extractFixture(to: SFile) {
         }
     }
 }
-
 async function setup(FS: FileSystemFactory, cleanups: (()=>Promise<any>)[]): Promise<SetupResult> {
     // Re-mount on every load (RAM mount is lost on reload)
     fs.mkdirSync("/zip/", {recursive: true});
@@ -43,31 +43,32 @@ async function setup(FS: FileSystemFactory, cleanups: (()=>Promise<any>)[]): Pro
     await dev.mount("/lv3/","idb",{dbName:"lazy",lazy:3});
 
     (globalThis as any).FS=FS;
-    const root = FS.get("/");
+    root = FS.get("/");
     const zipDir = root.rel("zip/");
     // Always re-extract fixture (RAM is volatile, lost on reload)
     await extractFixture(zipDir);
 
     const fixture = zipDir.rel("fixture/");
-    const romd = fixture.rel("rom/");
     const ramd = root.rel("ram/");
 
     const testf = root.rel("testfn.txt");
     cleanups.push(async () => testf.exists() && testf.rm());
     const testd = root.rel(/*Math.random()*/"testdir" + "/");
-    return {root, fixture, romd, ramd, testf, testd, cleanups, skipRamdCleanup: true};
+    return {fixture, ramd, testf, testd, cleanups, skipRamdCleanup: true};
 }
+let root:SFile;
 
 main({
     async runPass1(c:Pass1Context){
         await runPass1(c);
-        if (!c.root) throw new Error("Pass1Context.root should be provided.");
-        await testIDB(1, c.fixture, c.root.rel("idb/pfs-test/"));
+        if (!root) throw new Error("Pass1Context.root should be provided.");
+        await testIDB(1, c.fixture, root.rel("idb/pfs-test/"));
+        await testFineMtime(FS);
     },
     async runPass2(c:Pass2Context){
         await runPass2(c);
-        if (!c.root) throw new Error("Pass2Context.root should be provided.");
-        await testIDB(2, c.fixture, c.root.rel("idb/pfs-test/"));        
+        if (!root) throw new Error("Pass1Context.root should be provided.");
+        await testIDB(2, c.fixture, root.rel("idb/pfs-test/"));        
     },
     FS,
     setup,
@@ -188,4 +189,46 @@ function contEq(a:Uint8Array|string, b:Uint8Array|string) {
 }
 function eqaSorted(actual:any[],expected:any[]) {
     _assert.deepStrictEqual(actual.sort(),expected.sort());
+}
+
+async function testFineMtime(FS:FileSystemFactory) {
+    async function set(){
+        const n=performance.now();
+        for (let fs of dev.df()) {
+            if (fs.fstype()==="idb") {
+                const lsfs=fs as LSFS;
+                const mpf=FS.get(fs.mountPoint);
+                if (fs.mountPoint.includes("lv3"))continue;
+                for (let e of mpf.listFiles()) {
+                    const nmt=naiveMtime(e);
+                    const fmt=await lsfs.setFineMtime(toCanonicalPath(e.path()));
+                    console.log("testFineMtime",fmt, nmt, e.path())
+                    assert.eq(fmt, nmt, e.path());
+                }
+            }
+        }
+        console.log("setFineMtime took ",performance.now()-n,"msec.");
+    }
+    await set();
+    const touch="/idb/pfs-test/Tonyu/Projects/MapTest/Test.tonyu";
+    const touchF=FS.get(touch);
+    for (let f=touchF;f.truncSep()!=="idb";f=f.up()!) {
+        const m1=f.getMetaInfo();
+        assert(m1.hasFineMtime,"!m1.hasFineMTime "+f);        
+    }
+    touchF.appendText("/*APPENDED*/");
+    for (let f=touchF.up()!;f.truncSep()!=="idb";f=f.up()!) {
+        const m1=f.getMetaInfo();
+        assert(!m1.hasFineMtime,"m1.hasFineMTime "+f);        
+    }
+    await set();
+    touchF.text(touchF.text().replace(/..APPENDED..$/,"") );
+    function naiveMtime(dir:SFile):number {
+        let max=0;
+        for (let f of dir.listFiles()) {
+            const mt=(f.isDir()? naiveMtime(f) : f.lastUpdate());
+            if (mt>max) max=mt;
+        }
+        return max;
+    }
 }

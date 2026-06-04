@@ -8,7 +8,7 @@ import {Pass2Context} from "./pass2.js";
 export async function runPass2(ctx: Pass2Context) {
   const {FS} = ctx;
   const fixture = ctx.fixture.async();
-  const romd    = ctx.romd.async();
+  const romd = fixture.rel("rom/").async();
   const testf   = ctx.testf.async();
 
   const testd = FS.afile(await testf.text());
