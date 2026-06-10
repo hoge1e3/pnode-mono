@@ -2,4 +2,4 @@
 .tsbuildinfo
 /cotest
 php/config.php
-php/admin
+/data

@@ -263,6 +263,9 @@ async function testObjectStore(){
     }
 }
 async function main() {
+    if (!fs.existsSync("../cotest/.gsync")) {
+        fs.mkdirSync("../cotest/.gsync", { recursive: true });
+    }
     //await testObjectStore();
     //await test_clone();
     await testHash2();

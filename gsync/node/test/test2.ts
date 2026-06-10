@@ -146,6 +146,9 @@ export async function test_scenario_merge(originDir:FilePath, cloneDir:FilePath)
 
 }
 export async function main(){
+  if (!fs.existsSync("../cotest/.gsync")) {
+      fs.mkdirSync("../cotest/.gsync", { recursive: true });
+  }
   await test_scenario_basic_sync();
   console.log("Cleanup");
   for (let f of cleanups) await f();

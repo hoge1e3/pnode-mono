@@ -27,6 +27,7 @@ petit-fs / sfile / fs2 / petit-node / bootpack / webcartridge
 
 ## ビルド
 
+tscはnode_modulesに入っているバージョン（5.9.3）を使用。
 ### 全パッケージ一括
 
 ```bash

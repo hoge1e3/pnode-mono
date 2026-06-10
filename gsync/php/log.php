@@ -57,5 +57,8 @@ function logMessage($body) {
         ]).PHP_EOL;
         file_put_contents($LOG_FILE, $errlog, FILE_APPEND);
     }
-    if (!$log_written) file_put_contents($LOG_FILE, $logEntry, FILE_APPEND);
+    if (!$log_written) {
+        if (!file_exists(dirname($LOG_FILE))) mkdir(dirname($LOG_FILE), 0777, true);
+        file_put_contents($LOG_FILE, $logEntry, FILE_APPEND);
+    }
 }

@@ -6,13 +6,14 @@ import * as path_typed from "./path_typed.js";
 import crypto from 'crypto';*/
 import ignore, { Ignore } from 'ignore';
 //import { promisify } from 'util';
-import { asFilename, asHash, asMode, Author, Ref, CommitEntry, Conflict, GitObject, Hash, isObjectType, ObjectType, TreeDiffEntry, TreeEntry, BranchName, asBranchName, asLocalRef, PathInRepo, FilePath, asFilePath, asPathInRepo } from './types.js';
+import { asFilename, asHash, asMode, Author, Ref, CommitEntry, Conflict, GitObject, Hash, isObjectType, ObjectType, TreeDiffEntry, TreeEntry, BranchName, asBranchName, asLocalRef, PathInRepo, FilePath, asFilePath, asPathInRepo, Mode } from './types.js';
 import { inflate, deflate ,sha1Hex } from './codec.js';
 import { FMTStorage, ObjectEntry, ObjectStore } from './objects.js';
 /*const inflate = promisify(zlib.inflate);
 const deflate = promisify(zlib.deflate);*/
 import { getSplashScreen } from "./splash.js";
 import { exists, join } from './util.js';
+import { Index } from "./index_file.js";
 const splashScreen=await getSplashScreen();
 
 export class Repo {
@@ -653,6 +654,167 @@ export class Repo {
       }
     }
     return false;
+  }
+
+  async updateIndexFromWorkingDir(indexPath: FilePath): Promise<Index> {
+    const workingDir = this.workingDir();
+    const index = await Index.read(indexPath);
+    const scannedPaths = new Set<string>();
+
+    let ig = new RecursiveGitIgnore();
+    const dot_gsync = path.basename(this.gitDir);
+    const baseig = ignore();
+    baseig.add(".git");
+    baseig.add(dot_gsync);
+
+    const walk = async (dir: FilePath) => {
+      ig = await ig.pushed(dir);
+      try {
+        const files = await fs.readdir(dir, { withFileTypes: true });
+        for (const file of files) {
+          const name = asFilename(file.name);
+          const fullPath = asFilePath(path.join(dir, name));
+          const relPath = path.relative(workingDir, fullPath);
+
+          // Ignore checker
+          if (ig.ignores(fullPath) || baseig.ignores(relPath)) {
+            continue;
+          }
+
+          const relPathSlash = relPath.replace(/\\/g, "/");
+
+          if (file.isFile() || file.isSymbolicLink()) {
+            const stat = await fs.lstat(fullPath);
+            scannedPaths.add(relPathSlash);
+
+            // Check if index already has a valid entry with matching mtime and size
+            const existing = index.entries.get(relPathSlash);
+            const mtimeMs = stat.mtime.getTime();
+            const mtimeSec = Math.floor(mtimeMs / 1000);
+            const mtimeNano = (mtimeMs % 1000) * 1000000;
+
+            if (existing && existing.mtimeSec === mtimeSec && existing.fileSize === stat.size) {
+              continue;
+            }
+
+            let hash: Hash;
+            let mode = 0o100644; // 33188
+
+            if (file.isSymbolicLink()) {
+              if (this.ignoreSymlink) continue;
+              const link = await fs.readlink(fullPath);
+              const content = Buffer.from(link, 'utf-8');
+              hash = await this.writeObject('blob', content);
+              mode = 0o120000; // 40960
+            } else {
+              const _content = await fs.readFile(fullPath);
+              const content = stripCR(_content);
+              hash = await this.writeObject('blob', content);
+            }
+
+            const ctimeMs = stat.ctime.getTime();
+            const ctimeSec = Math.floor(ctimeMs / 1000);
+            const ctimeNano = (ctimeMs % 1000) * 1000000;
+
+            index.entries.set(relPathSlash, {
+              ctimeSec,
+              ctimeNano,
+              mtimeSec,
+              mtimeNano,
+              dev: stat.dev || 0,
+              ino: stat.ino || 0,
+              mode,
+              uid: stat.uid || 0,
+              gid: stat.gid || 0,
+              fileSize: stat.size,
+              sha1: hash,
+              flags: relPathSlash.length & 0xFFF,
+              path: relPathSlash
+            });
+          } else if (file.isDirectory() && !await this.isSubRepo(fullPath)) {
+            await walk(fullPath);
+          }
+        }
+      } finally {
+        ig = await ig.poped();
+      }
+    };
+
+    await walk(workingDir);
+
+    // Remove deleted files
+    for (const key of index.entries.keys()) {
+      if (!scannedPaths.has(key)) {
+        index.entries.delete(key);
+      }
+    }
+
+    await index.write(indexPath);
+    return index;
+  }
+
+  async writeTreeFromIndex(index: Index): Promise<Hash> {
+    interface Node {
+      children: Map<string, Node>;
+      hash?: Hash;
+      mode?: Mode;
+    }
+
+    const root: Node = { children: new Map() };
+
+    for (const entry of index.entries.values()) {
+      const parts = entry.path.split("/");
+      let current = root;
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (!current.children.has(part)) {
+          current.children.set(part, { children: new Map() });
+        }
+        current = current.children.get(part)!;
+
+        if (i === parts.length - 1) {
+          current.hash = entry.sha1;
+          const octalMode = entry.mode.toString(8);
+          current.mode = asMode(octalMode);
+        }
+      }
+    }
+
+    const writeNodeTree = async (node: Node): Promise<Hash> => {
+      const entries: TreeEntry[] = [];
+      for (const [name, child] of node.children.entries()) {
+        if (child.children.size > 0) {
+          // Directory
+          const dirHash = await writeNodeTree(child);
+          entries.push({
+            mode: "40000",
+            name: asFilename(name),
+            hash: dirHash
+          });
+        } else {
+          // File or Symlink
+          if (!child.hash || !child.mode) {
+            throw new Error(`Invalid leaf node structure for ${name}`);
+          }
+          entries.push({
+            mode: child.mode,
+            name: asFilename(name),
+            hash: child.hash
+          });
+        }
+      }
+
+      // Sort entries according to Git tree rules
+      entries.sort((a, b) => {
+        const nameA = a.mode === "40000" ? a.name + "/" : a.name;
+        const nameB = b.mode === "40000" ? b.name + "/" : b.name;
+        return nameA < nameB ? -1 : nameA > nameB ? 1 : 0;
+      });
+
+      return await this.writeTree(entries);
+    };
+
+    return await writeNodeTree(root);
   }
 }
 export async function writeFileIgnoreingCRLF(filePath: FilePath, content:Buffer) {
