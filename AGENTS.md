@@ -9,7 +9,7 @@
 
 ## 開発環境
 
-Windows上のWSL。ほかのLinuxでも多分動作する。
+Windows上ではmsys(mingw)。Linuxでも多分動作する。
 ---
 
 ## モノレポ構成
@@ -75,8 +75,8 @@ npm run test          # petit-node のテストのみ (http-server で test/inde
 cd <package> && npm run test  # 各パッケージ個別
 ```
 
-ブラウザベースのテストが多い（`npx http-server -o test/index.html` パターン）。
-
+- ブラウザベースのテストが多い（`npx http-server -o test/index.html` パターン）。
+- nodeベースのテストは必ず`npm run test`を使うこと。勝手にtestフォルダの中身を単独で実行しないこと。
 ---
 
 ## バージョン管理・リリース

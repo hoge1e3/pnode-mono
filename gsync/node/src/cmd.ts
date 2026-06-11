@@ -4,7 +4,7 @@ import { DownloadableObjectStore, GIT_DIR_NAME, Sync, SyncFactory } from "./sync
 import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, asPathInRepo, Author, BranchName, FilePath, Hash, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, IgnoreState, CommitEntry } from "./types.js";
 import {promises as fs} from "fs";
 import { Index } from "./index_file.js";
-import { factory as offlineObjectStoreFactory} from "./objects.js";
+import { FileBasedObjectStore, factory as offlineObjectStoreFactory} from "./objects.js";
 import { getSplashScreen } from "./splash.js";
 import { GSYNC_CONFLICT_DIR } from "./constants.js";
 import { exists, join } from "./util.js";
@@ -194,19 +194,29 @@ export async function commit(dir: string):Promise<Hash> {
     // even commit is failed unless online 
     const syncf=new SyncFactory(gitDir);
     const sync=await syncf.load();
+    const saveIndexFile=(
+        sync.objectStore instanceof FileBasedObjectStore ||
+        sync.objectStore instanceof DownloadableObjectStore &&
+            sync.objectStore.offline instanceof FileBasedObjectStore);
     const repo=sync.repo;
     if (!await exists(repo.headPath())) {
         await repo.setCurrentBranchName(asBranchName("main"));
     }
     const branch=await repo.getCurrentBranchName();
     const ref=asLocalRef(branch);
-    const indexPath=asFilePath(path.join(repo.gitDir, "index"));
-    const index=await repo.updateIndexFromWorkingDir(indexPath);
     const curCommitHash = await repo.readHead(ref);
     if (verbose) console.log("curCommitHash", curCommitHash);
     // even commit is failed unless online 
     const curCommit = curCommitHash ? await repo.readCommit(curCommitHash) : null;
-    const newCommitTreeHash=await repo.writeTreeFromIndex(index);
+    let newCommitTreeHash;
+    if (saveIndexFile) {
+        const indexPath=asFilePath(path.join(repo.gitDir, "index"));
+        const index=await repo.updateIndexFromWorkingDir(indexPath);
+        newCommitTreeHash=await repo.writeTreeFromIndex(index);
+    } else{
+        const tree=await repo.buildTreeFromWorkingDir();
+        newCommitTreeHash=await repo.writeTree(tree);
+    }
     if (verbose) console.log("newCommitTreeHash", newCommitTreeHash);
     const MERGE_HEAD=await repo.readMergeHead();
     if (!MERGE_HEAD && curCommit && curCommit.tree===newCommitTreeHash) {
