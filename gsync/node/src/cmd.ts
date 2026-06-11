@@ -54,6 +54,8 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
         //    return await downloadObjects(cwd, args.includes("-a")?"all":"max_mtime");
         case "manage":
             return await manage(cwd);
+        case "share":
+            return share(cwd);
         case "scan":
             return await scan(cwd, 
             args.includes("--id"), 
@@ -102,6 +104,13 @@ showKey:boolean,shell:boolean){
         }
         console.log(...field);
     }
+}
+export async function share(cwd:string, gitDirName=GIT_DIR_NAME) {
+    const dir=path.join(cwd, gitDirName);
+    const gitDir=asFilePath(dir);
+    const syncf=new SyncFactory(gitDir);
+    const conf=await syncf.readConfig();
+    console.log("gsync clone "+conf.serverUrl+" "+conf.repoId);
 }
 export async function manage(cwd:string, gitDirName=GIT_DIR_NAME) {
     const dir=path.join(cwd, gitDirName);
