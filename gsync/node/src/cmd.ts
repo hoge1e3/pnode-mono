@@ -63,6 +63,43 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
             args.includes("--key"),
             args.includes("--shell"),
             );
+        case "switch":
+        case "checkout":
+            {
+                if (args.length === 0) {
+                    return await cmdListBranches(cwd);
+                }
+                let create = false;
+                let force = false;
+                let targetBranch = "";
+                for (let i = 0; i < args.length; i++) {
+                    const arg = args[i];
+                    if (arg === "-c" || arg === "--create") {
+                        create = true;
+                    } else if (arg === "-f" || arg === "--force") {
+                        force = true;
+                    } else if (arg.startsWith("-")) {
+                        throw new Error(`Unknown option: ${arg}`);
+                    } else {
+                        targetBranch = arg;
+                    }
+                }
+                if (!targetBranch) {
+                    throw new Error("No branch specified.");
+                }
+                return await switchBranch(cwd, targetBranch, { create, force });
+            }
+        case "branch":
+            return await cmdListBranches(cwd);
+        case "merge":
+            {
+                if (args.length < 1) {
+                    console.log("Usage: gsync merge <branch>");
+                    return;
+                }
+                const sourceBranch = args[0];
+                return await mergeBranch(cwd, sourceBranch);
+            }
         default:
             throw new Error(`Unknown command: ${command}`);
     }
@@ -198,15 +235,12 @@ export async function findGitDir(cwd: FilePath):Promise<FilePath> {
     }
 }
 let verbose=false;
-export async function commit(dir: string):Promise<Hash> {
+export async function commit(dir: string, message?: string):Promise<Hash> {
     const gitDir = await findGitDir(asFilePath(dir));
     // even commit is failed unless online 
     const syncf=new SyncFactory(gitDir);
     const sync=await syncf.load();
-    const saveIndexFile=(
-        sync.objectStore instanceof FileBasedObjectStore ||
-        sync.objectStore instanceof DownloadableObjectStore &&
-            sync.objectStore.offline instanceof FileBasedObjectStore);
+    const saveIndexFile=sync.objectStore.useIndexFile();
     const repo=sync.repo;
     if (!await exists(repo.headPath())) {
         await repo.setCurrentBranchName(asBranchName("main"));
@@ -242,7 +276,7 @@ export async function commit(dir: string):Promise<Hash> {
         author,
         committer: author,
         parents: [...curCommitHash?[curCommitHash]:[], ...MERGE_HEAD? [MERGE_HEAD]:[]],
-        message: new Date()+"",
+        message: message || new Date()+"",
         tree: newCommitTreeHash
     });
     if (MERGE_HEAD) await repo.writeMergeHead();
@@ -440,6 +474,168 @@ export async function checkRef(repo:Repo, chash:Hash) {
             console.error("Missing "+chash+" "+_path);
         }
         return c;
+    }
+}
+
+export async function cmdListBranches(dir: string) {
+    const gitDir = await findGitDir(asFilePath(dir));
+    const repo = await offlineRepo(gitDir);
+    const currentBranch = await repo.getCurrentBranchName();
+    const branches = await repo.getBranches();
+    for (const branch of branches) {
+        if (branch === currentBranch) {
+            console.log(`* ${branch}`);
+        } else {
+            console.log(`  ${branch}`);
+        }
+    }
+}
+
+export async function switchBranch(dir: string, branchName: string, options: { create?: boolean, force?: boolean } = {}) {
+    const gitDir = await findGitDir(asFilePath(dir));
+    const repo = await offlineRepo(gitDir);
+    
+    const currentBranch = await repo.getCurrentBranchName();
+    if (currentBranch === branchName && !options.create) {
+        console.log(`Already on '${branchName}'`);
+        return;
+    }
+
+    const branches = await repo.getBranches();
+    const branchExists = branches.includes(asBranchName(branchName));
+
+    if (options.create) {
+        if (branchExists && !options.force) {
+            throw new Error(`Branch '${branchName}' already exists.`);
+        }
+        const currentRef = asLocalRef(currentBranch);
+        const currentCommitHash = await repo.readHead(currentRef);
+        if (!currentCommitHash) {
+            throw new Error(`Cannot create branch '${branchName}' because current branch has no commits.`);
+        }
+        await repo.updateHead(asLocalRef(asBranchName(branchName)), currentCommitHash);
+        console.log(`Created branch '${branchName}'`);
+    } else {
+        if (!branchExists) {
+            throw new Error(`Branch '${branchName}' does not exist. Use -c to create it.`);
+        }
+    }
+
+    if (!options.force) {
+        const hasChanges = await repo.hasUncommittedChanges();
+        if (hasChanges) {
+            throw new Error(`You have uncommitted changes. Please commit or stash them before switching branches, or use -f to force switch.`);
+        }
+    }
+
+    const currentRef = asLocalRef(currentBranch);
+    const targetRef = asLocalRef(asBranchName(branchName));
+    const currentCommitHash = await repo.readHead(currentRef);
+    const targetCommitHash = await repo.readHead(targetRef);
+
+    if (targetCommitHash) {
+        const targetCommit = await repo.readCommit(targetCommitHash);
+        const targetTree = await repo.readTree(targetCommit.tree);
+        
+        if (currentCommitHash) {
+            const currentCommit = await repo.readCommit(currentCommitHash);
+            const currentTree = await repo.readTree(currentCommit.tree);
+            const diff = await repo.diffTreeRecursive(currentTree, targetTree);
+            await repo.applyDiff(diff);
+        } else {
+            await repo.checkoutTreeToDir(targetCommit.tree, repo.workingDir());
+        }
+    }
+
+    await repo.setCurrentBranchName(asBranchName(branchName));
+    console.log(`Switched to branch '${branchName}'`);
+}
+
+export async function mergeBranch(dir: string, sourceBranchName: string): Promise<string | Conflicted> {
+    const gitDir = await findGitDir(asFilePath(dir));
+    const repo = await offlineRepo(gitDir);
+
+    const currentBranch = await repo.getCurrentBranchName();
+    if (currentBranch === sourceBranchName) {
+        throw new Error(`Cannot merge branch '${sourceBranchName}' into itself.`);
+    }
+
+    const currentRef = asLocalRef(currentBranch);
+    const sourceRef = asLocalRef(asBranchName(sourceBranchName));
+
+    const currentCommitHash = await repo.readHead(currentRef);
+    const sourceCommitHash = await repo.readHead(sourceRef);
+
+    if (!currentCommitHash) {
+        throw new Error(`Current branch '${currentBranch}' has no commits.`);
+    }
+    if (!sourceCommitHash) {
+        throw new Error(`Source branch '${sourceBranchName}' has no commits.`);
+    }
+
+    const hasChanges = await repo.hasUncommittedChanges();
+    if (hasChanges) {
+        throw new Error(`You have uncommitted changes. Please commit or stash them before merging.`);
+    }
+
+    const baseCommitHash = await repo.findMergeBase(currentCommitHash, sourceCommitHash);
+
+    if (sourceCommitHash === baseCommitHash) {
+        console.log(`Already up-to-date.`);
+        return "no_changes";
+    }
+
+    const currentCommit = await repo.readCommit(currentCommitHash);
+    const sourceCommit = await repo.readCommit(sourceCommitHash);
+    const currentTree = await repo.readTree(currentCommit.tree);
+    const sourceTree = await repo.readTree(sourceCommit.tree);
+
+    if (currentCommitHash === baseCommitHash) {
+        const diff = await repo.diffTreeRecursive(currentTree, sourceTree);
+        await repo.applyDiff(diff);
+        await repo.updateHead(currentRef, sourceCommitHash);
+        console.log(`Fast-forward: merged branch '${sourceBranchName}' into '${currentBranch}'`);
+        return "pulled";
+    }
+
+    const baseCommit = await repo.readCommit(baseCommitHash);
+    const baseTree = await repo.readTree(baseCommit.tree);
+
+    const { toA, conflicts } = await repo.threeWayMerge(baseTree, currentTree, sourceTree);
+
+    await repo.writeMergeHead(sourceCommitHash);
+    await repo.applyDiff(toA);
+
+    if (conflicts.length === 0) {
+        console.log(`Auto-merging branch '${sourceBranchName}'`);
+        const mergedCommitHash = await commit(dir, `Merge branch '${sourceBranchName}' into '${currentBranch}'`);
+        console.log(`Merge commit created: ${mergedCommitHash}`);
+        return "auto_merged";
+    } else {
+        let confpaths: Conflicted = [];
+        for (let c of conflicts) {
+            const sourceObj = await repo.readObject(c.b);
+            const localPath = repo.toFilePath(c.path);
+            const localContent = await fs.readFile(localPath);
+            if (!sameExceptCRLF(localContent, sourceObj.content)) {
+                const postfix = `(${sourceCommitHash.substring(0, 8)})`;
+                const postfixedPath = await conflictedFile(repo, localPath, postfix);
+                confpaths.push(repo.toPathInRepo(postfixedPath));
+                if (confpaths.length === 1) console.log("CONFLICT");
+                console.log(`Conflict saved at ${postfixedPath}`);
+                await fs.mkdir(path.dirname(postfixedPath), { recursive: true });
+                await fs.writeFile(postfixedPath, sourceObj.content);
+            }
+        }
+        if (confpaths.length > 0) {
+            console.log("Resolve conflicts and run commit to complete the merge.");
+            return confpaths;
+        } else {
+            console.log(`Auto-merging branch '${sourceBranchName}'`);
+            const mergedCommitHash = await commit(dir, `Merge branch '${sourceBranchName}' into '${currentBranch}'`);
+            console.log(`Merge commit created: ${mergedCommitHash}`);
+            return "auto_merged";
+        }
     }
 }
 

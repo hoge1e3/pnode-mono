@@ -147,6 +147,7 @@ export class Sync {
 
 export class DownloadableObjectStore implements ObjectStore {
     constructor(public offline:ObjectStore, public api:WebApi<APIConfig>){}
+    useIndexFile(){return this.offline.useIndexFile();}
     getFMTStorage(): FMTStorage | undefined {
         return this.offline.getFMTStorage();
     }

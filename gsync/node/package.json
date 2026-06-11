@@ -4,7 +4,7 @@
     "scripts": {
         "tsc": "npx tsc",
         "build": "npx tsc",
-        "test": "npm run build && node js/test/test2.js && node js/test/test-index.js",
+        "test": "npm run build && node js/test/test2.js && node js/test/test-index.js && node js/test/test-branch-merge.js",
         "cp": "bash cp2idb.sh"
     },
     "bin": {

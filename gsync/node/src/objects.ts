@@ -21,6 +21,7 @@ export interface ObjectStore {
     getState():Promise<State>;
     setState(state:State):Promise<void>;
     getFMTStorage():FMTStorage|undefined;
+    useIndexFile():boolean;
 }
 async function mtimeOnPut(store:ObjectStore, downloaded:boolean){
     const state=await store.getState();
@@ -78,6 +79,7 @@ export interface FMTStorage {
 export class IndexedDBBasedObjectStore implements ObjectStore {
     private db: IDBDatabase | null = null;
     dbInit=new MutablePromise<IDBDatabase>();
+    useIndexFile(){return false;}
     constructor(public dbName: string, public stateFile: FilePath) {
         // Initialize IndexedDB
         const request = indexedDB.open(dbName,3);
@@ -241,6 +243,7 @@ export class FileBasedObjectStore implements ObjectStore {
     */
     constructor(public path: FilePath, public stateFile:FilePath) {// path to "object" folder inside .git folder
     }
+    useIndexFile(){return true;}
     async getState(): Promise<State> {
         if (!await exists(this.stateFile)) {
             const newstate:State={

@@ -816,6 +816,47 @@ export class Repo {
 
     return await writeNodeTree(root);
   }
+
+  async getBranches(): Promise<BranchName[]> {
+    const headsDir = path.join(this.gitDir, 'refs', 'heads');
+    const branches: BranchName[] = [];
+    const walk = async (dir: FilePath) => {
+      if (!await exists(dir)) return;
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = asFilePath(path.join(dir, entry.name));
+        if (entry.isDirectory()) {
+          await walk(fullPath);
+        } else if (entry.isFile()) {
+          const rel = path.relative(headsDir, fullPath);
+          const branchName = rel.replace(/\\/g, '/');
+          branches.push(asBranchName(branchName));
+        }
+      }
+    };
+    await walk(asFilePath(headsDir));
+    return branches;
+  }
+
+  async hasUncommittedChanges(): Promise<boolean> {
+    const branch = await this.getCurrentBranchName();
+    const ref = asLocalRef(branch);
+    const curCommitHash = await this.readHead(ref);
+    if (!curCommitHash) return false;
+    const curCommit = await this.readCommit(curCommitHash);
+    const saveIndexFile = this.objectStore.useIndexFile();
+    let newCommitTreeHash;
+    if (saveIndexFile) {
+      const indexPath = asFilePath(path.join(this.gitDir, "index"));
+      const index = await this.updateIndexFromWorkingDir(indexPath);
+      newCommitTreeHash = await this.writeTreeFromIndex(index);
+    } else {
+      const tree = await this.buildTreeFromWorkingDir();
+      newCommitTreeHash = await this.writeTree(tree);
+    }
+    const MERGE_HEAD = await this.readMergeHead();
+    return !!MERGE_HEAD || curCommit.tree !== newCommitTreeHash;
+  }
 }
 export async function writeFileIgnoreingCRLF(filePath: FilePath, content:Buffer) {
   if (await exists(filePath)) {
