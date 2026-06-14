@@ -122,7 +122,7 @@ export async function testBranchSwitchAndMerge() {
   const files = fs.readdirSync(repoDir);
   const conflictFile = files.find(f => f.startsWith("file1(") && f.endsWith(").txt"));
   assert.ok(conflictFile, "conflict file should exist");
-  assert.equal(fs.readFileSync(path.join(repoDir, conflictFile), "utf8"), "conflict version on branch3");
+  assert.equal(fs.readFileSync(path.join(repoDir, conflictFile), "utf8"), "conflict version on branch3 (divergent)");
 }
 
 async function main() {
