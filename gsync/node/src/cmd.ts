@@ -78,6 +78,15 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
                         create = true;
                     } else if (arg === "-f" || arg === "--force") {
                         force = true;
+                    } else if (typeof arg==="object") {
+                        // acepad shell interprets -c as {c:true}
+                        const a=arg as any;
+                        if (a.c || a.create) {
+                            create = true;
+                        }
+                        if (a.f || a.force) {
+                            force = true;
+                        }
                     } else if (arg.startsWith("-")) {
                         throw new Error(`Unknown option: ${arg}`);
                     } else {
