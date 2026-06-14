@@ -564,6 +564,8 @@ export async function switchBranch(dir: string, branchName: string, options: { c
 export async function mergeBranch(dir: string, sourceBranchName: string): Promise<string | Conflicted> {
     const gitDir = await findGitDir(asFilePath(dir));
     const repo = await offlineRepo(gitDir);
+    const syncf = new SyncFactory(gitDir);
+    const sync = await syncf.load();
 
     const currentBranch = await repo.getCurrentBranchName();
     if (currentBranch === sourceBranchName) {
@@ -571,16 +573,15 @@ export async function mergeBranch(dir: string, sourceBranchName: string): Promis
     }
 
     const currentRef = asLocalRef(currentBranch);
-    const sourceRef = asLocalRef(asBranchName(sourceBranchName));
 
     const currentCommitHash = await repo.readHead(currentRef);
-    const sourceCommitHash = await repo.readHead(sourceRef);
+    const sourceCommitHash = await sync.getRemoteHead(asBranchName(sourceBranchName));
 
     if (!currentCommitHash) {
         throw new Error(`Current branch '${currentBranch}' has no commits.`);
     }
     if (!sourceCommitHash) {
-        throw new Error(`Source branch '${sourceBranchName}' has no commits.`);
+        throw new Error(`Source branch '${sourceBranchName}' has no commits on remote.`);
     }
 
     const hasChanges = await repo.hasUncommittedChanges();

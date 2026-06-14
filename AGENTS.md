@@ -24,8 +24,13 @@ petit-fs / sfile / fs2 / petit-node / bootpack / webcartridge
 各パッケージは独自の `tsconfig.json` + `webpack.config.cjs` を持つ。
 
 ---
+## ワークツリー
+
+ワークツリーは使用せず直接書き換えてよい。
 
 ## ビルド
+
+ビルドは手動で行うので、ソースコードの変更だけ行うこと。以下は人間用のメモ。
 
 tscはnode_modulesに入っているバージョン（5.9.3）を使用。
 ### 全パッケージ一括
