@@ -151,3 +151,9 @@ sync-idb-kvs → sync-idb-kvs-multi → petit-fs
 | `versionup.mjs` | バージョンアップ自動化 |
 | `publish.mjs` | npm publish 自動化 |
 | `scripts/copy-to-gio.mjs` | GitHub Pages へのデプロイ |
+
+## サブプロジェクト
+
+- **gsync** is a git-like synchronization tool designed for AcePad/node,
+   - [詳細](gsync/AGENTS.md)
+
