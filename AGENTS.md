@@ -70,11 +70,12 @@ http://localhost/gio/acepad
 
 ## テスト
 
+- テストは手動実行なので、ソースコードの変更だけを行うこと。以下は「特別にテストはするように指示があった場合」の注意点
+
 ```bash
 npm run test          # petit-node のテストのみ (http-server で test/index.html を開く)
 cd <package> && npm run test  # 各パッケージ個別
 ```
-
 - ブラウザベースのテストが多い（`npx http-server -o test/index.html` パターン）。
 - nodeベースのテストは必ず`npm run test`を使うこと。勝手にtestフォルダの中身を単独で実行しないこと。
 ---
@@ -135,7 +136,6 @@ sync-idb-kvs → sync-idb-kvs-multi → petit-fs
 
 ## ファイル編集時の注意
 
-- `filesystem:write_file` は**ファイル全体を上書き**する。部分書き込み不可
 - `#!run` 等のシェバン行があるファイルは必ず保持すること
 - `shell.mjs` は `@hoge1e3/sfile` ベースのシェルユーティリティ。各 `.mjs` スクリプトで共通使用
 
@@ -146,10 +146,8 @@ sync-idb-kvs → sync-idb-kvs-multi → petit-fs
 | ファイル | 用途 |
 |---------|------|
 | `package.json` | ルート — workspaces 一覧、共通スクリプト、バージョン |
-| `server.mjs` | 開発サーバー (Express, port 3000) |
 | `shell.mjs` | シェルユーティリティ (`cp`, `exec`, `pushd/popd` 等) |
 | `workspaces.mjs` | `Workspace` クラス — package.json の読み書きと依存解決 |
-| `gitsync_all.mjs` | 全パッケージの git 同期 |
 | `versionup.mjs` | バージョンアップ自動化 |
 | `publish.mjs` | npm publish 自動化 |
 | `scripts/copy-to-gio.mjs` | GitHub Pages へのデプロイ |
