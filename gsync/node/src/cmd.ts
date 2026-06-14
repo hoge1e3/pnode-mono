@@ -85,6 +85,7 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
                     }
                 }
                 if (!targetBranch) {
+                    console.log("Usage: gsync switch <branch> [-c] [-f]");
                     throw new Error("No branch specified.");
                 }
                 return await switchBranch(cwd, targetBranch, { create, force });
