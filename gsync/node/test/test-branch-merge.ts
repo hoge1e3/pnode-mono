@@ -2,36 +2,28 @@ import * as fs from "fs";
 import * as path from "path";
 import * as assert from "assert";
 import { Repo } from "../src/git.js";
-import { commit, switchBranch, mergeBranch, init } from "../src/cmd.js";
-import { asFilePath, asBranchName, asLocalRef, isHash, FilePath, Hash, asPathInRepo } from "../src/types.js";
-import { GIT_DIR_NAME } from "../src/sync.js";
-import { factory as offlineObjectStoreFactory } from "../src/objects.js";
+import { commit, switchBranch, mergeBranch, init, sync, clone } from "../src/cmd.js";
+import { asBranchName, asFilePath, asLocalRef } from "../src/types.js";
+import { serverUrl } from "./test-settings.js";
+import { Sync, SyncFactory } from "../src/sync.js";
 const cleanups: (() => any)[] = [];
 function write(file: string, content: string) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, content);
 }
 async function initRepo(dir: string): Promise<Repo> {
-  const gitDir = asFilePath(path.join(dir, GIT_DIR_NAME));
-  fs.mkdirSync(gitDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(gitDir, "remote-conf.json"),
-    JSON.stringify({
-      serverUrl: "http://localhost/dummy.php",
-      repoId: "dummy_repo",
-      apiKey: "dummy_key"
-    })
-  );
-  fs.writeFileSync(
-    path.join(gitDir, "remote-state.json"),
-    JSON.stringify({
-      uploadSince: 0
-    })
-  );
+  await init(dir, serverUrl);
+  // Re-instantiate repo to get fresh instance after init
+  const gitDir = asFilePath(path.join(dir, ".gsync"));
+  const { factory: offlineObjectStoreFactory } = await import("../src/objects.js");
   const objectStore = await offlineObjectStoreFactory(gitDir);
   const repo = new Repo(gitDir, objectStore);
-  await repo.setCurrentBranchName(asBranchName("main"));
   return repo;
+}
+async function cloneRepo(src:Repo, dir:string):Promise<Sync> {
+  const syncf=new SyncFactory(src.gitDir);
+  const conf=await syncf.readConfig();
+  return await clone(dir, serverUrl, conf.repoId); 
 }
 export async function testBranchSwitchAndMerge() {
   const testdir = path.resolve("./test-repo-temp-branch");
@@ -125,9 +117,65 @@ export async function testBranchSwitchAndMerge() {
   assert.equal(fs.readFileSync(path.join(repoDir, conflictFile), "utf8"), "conflict version on branch3 (divergent)");
 }
 
+export async function testMultiRepoMerge() {
+  const testdir = path.resolve("./test-repo-temp-multi");
+  if (fs.existsSync(testdir)) {
+    fs.rmSync(testdir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(testdir, { recursive: true });
+  cleanups.push(() => fs.rmSync(testdir, { recursive: true, force: true }));
+  const repo1Dir = path.join(testdir, "repo1");
+  const repo1 = await initRepo(repo1Dir);
+  // --- Test 1: Initialize repo1 with initial commit on main ---
+  write(path.join(repo1Dir, "shared.txt"), "shared file v1");
+  write(path.join(repo1Dir, "repo1-only.txt"), "repo1 specific file");
+  const repo1Commit1 = await sync(repo1Dir, "saveHashedRemote", "Initial commit on repo1 main");
+  // --- Test 2: Create feature1 branch on repo1 ---
+  await switchBranch(repo1Dir, "feature1", { create: true });
+  write(path.join(repo1Dir, "shared.txt"), "shared file v2 from feature1");
+  write(path.join(repo1Dir, "feature1.txt"), "feature1 specific file");
+  const repo1Commit2 = await sync(repo1Dir, "saveHashedRemote", "Feature1 changes on repo1");
+  const repo2Dir = path.join(testdir, "repo2");
+  const repo2 = (await cloneRepo(repo1, repo2Dir)).repo;
+  // --- Test 3: Initialize repo2 with initial commit on main ---
+  write(path.join(repo2Dir, "shared.txt"), "shared file v1");
+  write(path.join(repo2Dir, "repo2-only.txt"), "repo2 specific file");
+  const repo2Commit1 = await sync(repo2Dir, "saveHashedRemote", "Initial commit on repo2 main");
+  // --- Test 4: Create feature2 branch on repo2 with different changes ---
+  await switchBranch(repo2Dir, "feature2", { create: true });
+  write(path.join(repo2Dir, "shared.txt"), "shared file v3 from feature2");
+  write(path.join(repo2Dir, "feature2.txt"), "feature2 specific file");
+  const repo2Commit2 = await sync(repo2Dir, "saveHashedRemote", "Feature2 changes on repo2");
+  // --- Test 5: Verify each repo is on correct branch ---
+  assert.equal(await repo1.getCurrentBranchName(), "feature1", "repo1 should be on feature1");
+  assert.equal(await repo2.getCurrentBranchName(), "feature2", "repo2 should be on feature2");
+  // --- Test 6: Switch repo1 back to main ---
+  await switchBranch(repo1Dir, "main");
+  assert.equal(await repo1.getCurrentBranchName(), "main", "repo1 should be on main");
+  // --- Test 7: Merge feature1 into repo1 main ---
+  const mergeStatus1 = await mergeBranch(repo1Dir, "feature1");
+  assert.equal(mergeStatus1, "pulled", "merge feature1 into repo1 main should be fast-forward");
+  assert.equal(fs.readFileSync(path.join(repo1Dir, "shared.txt"), "utf8"), "shared file v2 from feature1");
+  assert.ok(fs.existsSync(path.join(repo1Dir, "feature1.txt")), "feature1.txt should exist after merge");
+  // --- Test 8: Switch repo2 back to main ---
+  await switchBranch(repo2Dir, "main");
+  assert.equal(await repo2.getCurrentBranchName(), "main", "repo2 should be on main");
+  // --- Test 9: Merge feature2 into repo2 main ---
+  const mergeStatus2 = await mergeBranch(repo2Dir, "feature2");
+  assert.equal(mergeStatus2, "pulled", "merge feature2 into repo2 main should be fast-forward");
+  assert.equal(fs.readFileSync(path.join(repo2Dir, "shared.txt"), "utf8"), "shared file v3 from feature2");
+  assert.ok(fs.existsSync(path.join(repo2Dir, "feature2.txt")), "feature2.txt should exist after merge");
+  // --- Test 10: Verify repos remain independent ---
+  assert.ok(!fs.existsSync(path.join(repo1Dir, "feature2.txt")), "repo1 should not have feature2.txt");
+  assert.ok(!fs.existsSync(path.join(repo2Dir, "feature1.txt")), "repo2 should not have feature1.txt");
+  assert.ok(fs.existsSync(path.join(repo1Dir, "repo1-only.txt")), "repo1-only.txt should exist in repo1");
+  assert.ok(fs.existsSync(path.join(repo2Dir, "repo2-only.txt")), "repo2-only.txt should exist in repo2");
+}
+
 async function main() {
   try {
     await testBranchSwitchAndMerge();
+    await testMultiRepoMerge();
     for (const cleanup of cleanups) {
       await cleanup();
     }

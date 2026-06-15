@@ -24,7 +24,7 @@ petit-fs / sfile / fs2 / petit-node / bootpack / webcartridge
 各パッケージは独自の `tsconfig.json` + `webpack.config.cjs` を持つ。
 
 ---
-## ワークツリー
+## ワークツリー不使用
 
 ワークツリーは使用せず直接書き換えてよい。
 
