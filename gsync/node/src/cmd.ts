@@ -505,19 +505,22 @@ export async function cmdListBranches(dir: string) {
 export async function switchBranch(dir: string, branchName: string, options: { create?: boolean, force?: boolean } = {}) {
     const gitDir = await findGitDir(asFilePath(dir));
     const repo = await offlineRepo(gitDir);
-    
+    const syncf = new SyncFactory(gitDir);
+    const sync = await syncf.load();
     const currentBranch = await repo.getCurrentBranchName();
     if (currentBranch === branchName && !options.create) {
         console.log(`Already on '${branchName}'`);
         return;
     }
-
     const branches = await repo.getBranches();
     const branchExists = branches.includes(asBranchName(branchName));
-
     if (options.create) {
         if (branchExists && !options.force) {
             throw new Error(`Branch '${branchName}' already exists.`);
+        }
+        const remoteBranchCommit = await sync.getRemoteHead(asBranchName(branchName));
+        if (remoteBranchCommit) {
+            throw new Error(`Branch '${branchName}' exists on remote. Cannot create with -c option.`);
         }
         const currentRef = asLocalRef(currentBranch);
         const currentCommitHash = await repo.readHead(currentRef);
@@ -528,22 +531,25 @@ export async function switchBranch(dir: string, branchName: string, options: { c
         console.log(`Created branch '${branchName}'`);
     } else {
         if (!branchExists) {
-            throw new Error(`Branch '${branchName}' does not exist. Use -c to create it.`);
+            const remoteBranchCommit = await sync.getRemoteHead(asBranchName(branchName));
+            if (remoteBranchCommit) {
+                await repo.updateHead(asLocalRef(asBranchName(branchName)), remoteBranchCommit);
+                console.log(`Fetched remote branch '${branchName}'`);
+            } else {
+                throw new Error(`Branch '${branchName}' does not exist locally or on remote.`);
+            }
         }
     }
-
     if (!options.force) {
         const hasChanges = await repo.hasUncommittedChanges();
         if (hasChanges) {
             throw new Error(`You have uncommitted changes. Please commit or stash them before switching branches, or use -f to force switch.`);
         }
     }
-
     const currentRef = asLocalRef(currentBranch);
     const targetRef = asLocalRef(asBranchName(branchName));
     const currentCommitHash = await repo.readHead(currentRef);
     const targetCommitHash = await repo.readHead(targetRef);
-
     if (targetCommitHash) {
         const targetCommit = await repo.readCommit(targetCommitHash);
         const targetTree = await repo.readTree(targetCommit.tree);
