@@ -178,7 +178,7 @@ export interface IBuiltinModuleEntry extends _IModuleEntry {// includes cdn
 export interface IESModuleCompiler{
     compile(entry:IFileBasedModuleEntry):Promise<ICompiledESModule>;
 }
-export interface PNode {
+export interface PNode_nodef {
   aliases:IAliases,
   version: string,
   core: Core | null;
@@ -227,7 +227,9 @@ export interface PNode {
   require(path:string, base:string):ModuleValue;
   require(porf:string|SFile, base?:SFile|string):ModuleValue;
   clone(_globalThis:any):PNode;
-  default: PNode | undefined;
+}
+export interface PNode extends PNode_nodef{
+  default: PNode;
 }
 export type ScriptingContext={
     process?: typeof import("node:process"),
