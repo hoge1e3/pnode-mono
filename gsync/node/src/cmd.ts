@@ -78,6 +78,15 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
                         create = true;
                     } else if (arg === "-f" || arg === "--force") {
                         force = true;
+                    } else if (typeof arg==="object") {
+                        // acepad shell interprets -c as {c:true}
+                        const a=arg as any;
+                        if (a.c || a.create) {
+                            create = true;
+                        }
+                        if (a.f || a.force) {
+                            force = true;
+                        }
                     } else if (arg.startsWith("-")) {
                         throw new Error(`Unknown option: ${arg}`);
                     } else {
@@ -85,6 +94,7 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
                     }
                 }
                 if (!targetBranch) {
+                    console.log("Usage: gsync switch <branch> [-c] [-f]");
                     throw new Error("No branch specified.");
                 }
                 return await switchBranch(cwd, targetBranch, { create, force });
@@ -194,11 +204,11 @@ export async function init(cwd: string, serverUrl: string, gitDirName=GIT_DIR_NA
     await repo.setCurrentBranchName(asBranchName("main"));
     return repoId;
 }
-export async function clone(into:string,    serverUrl: string, repoId: string, branch="main", options:CloneOptions={gitDirName:GIT_DIR_NAME}) {
-    await _clone(asFilePath(into), {serverUrl,repoId,apiKey:Math.random().toString(36).slice(2)} , asBranchName(branch), options );
+export async function clone(into:string,    serverUrl: string, repoId: string, branch="main", options:CloneOptions={gitDirName:GIT_DIR_NAME}):Promise<Sync> {
+    return await _clone(asFilePath(into), {serverUrl,repoId,apiKey:Math.random().toString(36).slice(2)} , asBranchName(branch), options );
 }
 
-async function _clone(into:FilePath, config:APIConfig,  branch: BranchName, options: CloneOptions) {
+async function _clone(into:FilePath, config:APIConfig,  branch: BranchName, options: CloneOptions):Promise<Sync> {
     let skipco;
     if (await exists(into) && (await fs.readdir(into)).length>0) {
         if (!options.allowNonEmpty) throw new Error(`${into} is not empty.`);
@@ -304,7 +314,8 @@ export async function syncWithRetry(dir: string,
     await sync.downloadObjects(ignoreState);
 }*/
 export async function sync(dir: string, 
-    conflictResolutionPolicy:ConflictResolutionPolicy):Promise<SyncStatus> {
+    conflictResolutionPolicy:ConflictResolutionPolicy="saveHashedRemote", 
+    message=new Date()+""):Promise<SyncStatus> {
     //splashScreen.show("Commit");
     //const localCommitHash=await commit(dir);
     const gitDir = await findGitDir(asFilePath(dir));
@@ -316,7 +327,7 @@ export async function sync(dir: string,
     await splashScreen.show("Commit");
     //const remoteCommitHash= await sync.getRemoteHead(branch);
     const [localCommitHash,remoteCommitHash]= await Promise.all([
-        commit(dir),
+        commit(dir, message),
         sync.getRemoteHead(branch),
     ]);
     if (!remoteCommitHash) {
@@ -554,6 +565,8 @@ export async function switchBranch(dir: string, branchName: string, options: { c
 export async function mergeBranch(dir: string, sourceBranchName: string): Promise<string | Conflicted> {
     const gitDir = await findGitDir(asFilePath(dir));
     const repo = await offlineRepo(gitDir);
+    const syncf = new SyncFactory(gitDir);
+    const sync = await syncf.load();
 
     const currentBranch = await repo.getCurrentBranchName();
     if (currentBranch === sourceBranchName) {
@@ -561,16 +574,17 @@ export async function mergeBranch(dir: string, sourceBranchName: string): Promis
     }
 
     const currentRef = asLocalRef(currentBranch);
-    const sourceRef = asLocalRef(asBranchName(sourceBranchName));
-
     const currentCommitHash = await repo.readHead(currentRef);
-    const sourceCommitHash = await repo.readHead(sourceRef);
+    const sourceRef = asLocalRef(asBranchName(sourceBranchName));
+    const sourceCommitHash = 
+        (await repo.readHead(sourceRef))||
+        (await sync.getRemoteHead(asBranchName(sourceBranchName)));
 
     if (!currentCommitHash) {
         throw new Error(`Current branch '${currentBranch}' has no commits.`);
     }
     if (!sourceCommitHash) {
-        throw new Error(`Source branch '${sourceBranchName}' has no commits.`);
+        throw new Error(`Source branch '${sourceBranchName}' has no commits on remote.`);
     }
 
     const hasChanges = await repo.hasUncommittedChanges();

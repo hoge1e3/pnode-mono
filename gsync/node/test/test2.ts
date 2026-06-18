@@ -8,6 +8,7 @@ import { commit, clone, sync, init, syncWithRetry } from "../src/cmd.js";
 import { asFilePath, asBranchName, asLocalRef, isHash, FilePath, Hash } from "../src/types.js";
 import { GIT_DIR_NAME, Sync, SyncFactory } from "../src/sync.js";
 import { factory as offlineObjectStoreFactory } from "../src/objects.js";
+import { serverUrl } from "./test-settings.js";
 async function offlineRepo(gitDir:FilePath) {
     const objectStore=await offlineObjectStoreFactory(gitDir);
     const repo=new Repo(gitDir,objectStore);
@@ -16,7 +17,7 @@ async function offlineRepo(gitDir:FilePath) {
 
 const mainBranch = asBranchName("main");
 const mainRef = asLocalRef(mainBranch);
-const serverUrl="http://localhost/gsync/index.php";
+//const serverUrl="http://localhost/gsync/index.php";
 const cleanups=[] as (()=>any)[];
 function write(file: string, content: string) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
