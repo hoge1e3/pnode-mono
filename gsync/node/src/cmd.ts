@@ -582,24 +582,33 @@ export async function mergeBranch(dir: string, sourceBranchName: string): Promis
     const currentRef = asLocalRef(currentBranch);
     const currentCommitHash = await repo.readHead(currentRef);
     const sourceRef = asLocalRef(asBranchName(sourceBranchName));
-    const sourceCommitHash = 
-        (await repo.readHead(sourceRef))||
-        (await sync.getRemoteHead(asBranchName(sourceBranchName)));
-
+    const localSourceCommitHash = await repo.readHead(sourceRef);
+    const remoteSourceCommitHash = await sync.getRemoteHead(asBranchName(sourceBranchName));
     if (!currentCommitHash) {
         throw new Error(`Current branch '${currentBranch}' has no commits.`);
     }
+    let sourceCommitHash: Hash | null = localSourceCommitHash || remoteSourceCommitHash;
     if (!sourceCommitHash) {
-        throw new Error(`Source branch '${sourceBranchName}' has no commits on remote.`);
+        throw new Error(`Source branch '${sourceBranchName}' has no commits locally or on remote.`);
     }
-
+    if (localSourceCommitHash && remoteSourceCommitHash && localSourceCommitHash !== remoteSourceCommitHash) {
+        const mergeBase = await repo.findMergeBase(localSourceCommitHash, remoteSourceCommitHash);
+        if (mergeBase === localSourceCommitHash) {
+            console.log(`Local '${sourceBranchName}' is behind remote. Using remote version.`);
+            sourceCommitHash = remoteSourceCommitHash;
+            await repo.updateHead(sourceRef, remoteSourceCommitHash);
+        } else if (mergeBase === remoteSourceCommitHash) {
+            console.log(`Remote '${sourceBranchName}' is behind local. Using local version.`);
+            sourceCommitHash = localSourceCommitHash;
+        } else {
+            throw new Error(`Source branch '${sourceBranchName}' has diverged between local and remote. Cannot auto-merge. Resolve manually or update one side.`);
+        }
+    }
     const hasChanges = await repo.hasUncommittedChanges();
     if (hasChanges) {
         throw new Error(`You have uncommitted changes. Please commit or stash them before merging.`);
     }
-
     const baseCommitHash = await repo.findMergeBase(currentCommitHash, sourceCommitHash);
-
     if (sourceCommitHash === baseCommitHash) {
         console.log(`Already up-to-date.`);
         return "no_changes";
