@@ -101,6 +101,15 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
             }
         case "branch":
             return await cmdListBranches(cwd);
+        case "msync":
+            {
+                if (args.length < 1) {
+                    console.log("Usage: gsync msync <branch>");
+                    return;
+                }
+                const msyncBranch = args[0];
+                return await msync(cwd, msyncBranch);
+            }
         case "merge":
             {
                 if (args.length < 1) {
@@ -176,6 +185,18 @@ async function offlineRepo(gitDir:FilePath) {
     const objectStore=await offlineObjectStoreFactory(gitDir);
     const repo=new Repo(gitDir,objectStore);
     return repo;
+}
+export async function msync(dir: string, branchName: string) {
+  const r1 = await syncWithRetry(dir, "saveHashedRemote");
+  if (Array.isArray(r1)) throw new Error(`Conflict after sync: ${r1.join(", ")}`);
+  console.log("sync1:", r1);
+  const r2 = await mergeBranch(dir, branchName);
+  if (Array.isArray(r2)) throw new Error(`Conflict during merge: ${r2.join(", ")}`);
+  console.log("merge:", r2);
+  const r3 = await syncWithRetry(dir, "saveHashedRemote");
+  if (Array.isArray(r3)) throw new Error(`Conflict after sync: ${r3.join(", ")}");
+  console.log("sync2:", r3);
+  return r3;
 }
 export async function catFile(dir: string, hash: string ) {
     const gitDir=await findGitDir(asFilePath(dir));
