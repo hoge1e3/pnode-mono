@@ -194,7 +194,7 @@ export async function msync(dir: string, branchName: string) {
   if (Array.isArray(r2)) throw new Error(`Conflict during merge: ${r2.join(", ")}`);
   console.log("merge:", r2);
   const r3 = await syncWithRetry(dir, "saveHashedRemote");
-  if (Array.isArray(r3)) throw new Error(`Conflict after sync: ${r3.join(", ")}");
+  if (Array.isArray(r3)) throw new Error(`Conflict after sync: ${r3.join(", ")}`);
   console.log("sync2:", r3);
   return r3;
 }
