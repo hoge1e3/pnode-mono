@@ -525,9 +525,9 @@ export async function cmdListBranches(dir: string) {
 
 export async function switchBranch(dir: string, branchName: string, options: { create?: boolean, force?: boolean } = {}) {
     const gitDir = await findGitDir(asFilePath(dir));
-    const repo = await offlineRepo(gitDir);
     const syncf = new SyncFactory(gitDir);
     const sync = await syncf.load();
+    const repo= sync.repo;
     const currentBranch = await repo.getCurrentBranchName();
     if (currentBranch === branchName && !options.create) {
         console.log(`Already on '${branchName}'`);
