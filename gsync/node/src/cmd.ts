@@ -591,9 +591,9 @@ export async function switchBranch(dir: string, branchName: string, options: { c
 
 export async function mergeBranch(dir: string, sourceBranchName: string): Promise<string | Conflicted> {
     const gitDir = await findGitDir(asFilePath(dir));
-    const repo = await offlineRepo(gitDir);
     const syncf = new SyncFactory(gitDir);
     const sync = await syncf.load();
+    const repo = sync.repo;
 
     const currentBranch = await repo.getCurrentBranchName();
     if (currentBranch === sourceBranchName) {
