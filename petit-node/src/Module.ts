@@ -17,16 +17,23 @@ export function resolveModuleEntry(aliases: IAliases, wantModuleType:ImportOrReq
         if (!aliases.cache.getByPath(ent.cacheKey())) throw new Error(`npm '${path}' is not implemented.`);
         return ent;
     }
-    try {
-        return FileBasedModuleEntry.resolve(wantModuleType, path, base);
-    } catch(e) {
-        if (path.match(/^[\.\/]/)) {
+    if (path.match(/^[\.\/]/)) {
+        try {
+            return FileBasedModuleEntry.resolve(wantModuleType, path, base);
+        } catch(e) {
             throw new Error(`Module ${path} not found`);
         }
+    }
+    const [main, sub] = NodeModule.parsePath(path);
+    let dir: NodeModule;
+    try {
+        dir = NodeModule.resolve(main, base);
+    } catch(e) {
         const ent=new BuiltinModuleEntry(path);
         if (aliases.invalidModules.has(ent.cacheKey())) throw new Error(`Module '${path}' not found`);
         return ent;
     }
+    return FileBasedModuleEntry.fromNodeModule(wantModuleType, dir, sub);
 }
 export class BuiltinModuleEntry implements IBuiltinModuleEntry {
     constructor(public name: string, 
