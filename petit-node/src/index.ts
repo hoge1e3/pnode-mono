@@ -36,8 +36,10 @@ import { bind } from "./ESModuleGenerator.js";
 declare let globalThis:any;
 //declare let global:any;
 type SFile=sfile.SFile;
-const VERSION_SRC="__VER__2.0.2__SION__";
+const VERSION_SRC="__VER__2.0.1__SION__";
 export let version=VERSION_SRC.replace(/\_\_VER\_\_/,"").replace(/\_\_SION\_\_/,"");
+const BUILT_AT_SRC="__BUIL__2026-0623-113320__T_AT__";
+export let built_at=BUILT_AT_SRC.replace(/\_\_BUIL\_\_/,"").replace(/\_\_T\_AT\_\_/,"");
 function setupCore(){
     let res={
         FS:_FS as TFS, 
@@ -110,7 +112,7 @@ export function createInstance(_globalThis:any):PNode {
         aliases: new Aliases(scriptingContext),
         events, on,
         core:null as Core|null,
-        version,
+        version,built_at,
         file(path:string):SFile{
             return this.getFS().get(path);
         },

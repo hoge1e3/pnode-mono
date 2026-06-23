@@ -4,9 +4,10 @@
   "main": "./js/main.js",
   "scripts": {
     "tsc": "echo no tsc needed",
-    "webpack-dev": "npx webpack",
+    "webpack-dev": "npx webpack && npm run inject-time",
     "build-dev": "npm run tsc && npm run webpack-dev",
-    "gio": "cd .. && npm run gio"
+    "gio": "cd .. && npm run gio",
+    "inject-time": "node ./inject-time.mjs "
   },
   "keywords": [],
   "author": "",

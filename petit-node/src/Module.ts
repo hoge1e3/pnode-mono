@@ -18,11 +18,7 @@ export function resolveModuleEntry(aliases: IAliases, wantModuleType:ImportOrReq
         return ent;
     }
     if (path.match(/^[\.\/]/)) {
-        try {
-            return FileBasedModuleEntry.resolve(wantModuleType, path, base);
-        } catch(e) {
-            throw new Error(`Module ${path} not found`);
-        }
+        return FileBasedModuleEntry.resolve(wantModuleType, path, base);
     }
     const [main, sub] = NodeModule.parsePath(path);
     let dir: NodeModule;

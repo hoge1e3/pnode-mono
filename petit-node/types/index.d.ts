@@ -181,6 +181,7 @@ export interface IESModuleCompiler{
 export interface PNode_nodef {
   aliases:IAliases,
   version: string,
+  built_at: string,
   core: Core | null;
   file(path: string): SFile;
   getFS(): TFS;
