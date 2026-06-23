@@ -25,6 +25,7 @@ export function resolveModuleEntry(aliases: IAliases, wantModuleType:ImportOrReq
     try {
         dir = NodeModule.resolve(main, base);
     } catch(e) {
+        console.error(e);
         const ent=new BuiltinModuleEntry(path);
         if (aliases.invalidModules.has(ent.cacheKey())) throw new Error(`Module '${path}' not found`);
         return ent;
