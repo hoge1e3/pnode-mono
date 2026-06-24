@@ -612,7 +612,7 @@ export class Repo {
       if (await igc.ignores(filePath)) continue;
       if (await this.inSubRepo(asFilePath(path.dirname(filePath))))continue;
       if (diff.type === 'deleted') {
-        await fs.rm(filePath, { force: true });
+        if (await exists(filePath)) await fs.rm(filePath, { force: true });
       } else if (diff.type === 'added' || diff.type === 'modified') {
         await splashScreen.show("Write "+filePath);
         if (!diff.newHash) throw new Error(`Missing 'other' hash for ${diff.path}`);
