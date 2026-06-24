@@ -573,11 +573,11 @@ export class Repo {
     return asHash(await fs.readFile(MERGE_HEAD, {encoding:"utf-8"}));
   }
   async writeMergeHead(commitHash?: Hash) {
-    const MERGE_HEAD=path.join(this.gitDir, "MERGE_HEAD");
+    const MERGE_HEAD=join(this.gitDir, "MERGE_HEAD");
     if (commitHash) {
       await fs.writeFile(MERGE_HEAD, commitHash);
     } else {
-      await fs.rm(MERGE_HEAD);
+      if (await exists(MERGE_HEAD)) await fs.rm(MERGE_HEAD);
     }
   }
   realGitRepoIsSubRepo():boolean{
