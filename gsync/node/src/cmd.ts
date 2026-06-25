@@ -152,6 +152,8 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
                 console.log(`Reset '${branch}' to remote ${remoteHead}`);
                 return;
             }
+        case "diff":
+            return await diffCmd(cwd);
         default:
             throw new Error(`Unknown command: ${command}`);
     }
@@ -721,4 +723,41 @@ export async function mergeBranch(dir: string, sourceBranchName: string): Promis
         }
     }
 }
+
+export async function diffCmd(dir: string): Promise<void> {
+    const gitDir = await findGitDir(asFilePath(dir));
+    const syncf = new SyncFactory(gitDir);
+    const sync = await syncf.load();
+    const repo = sync.repo;
+
+    const branch = await repo.getCurrentBranchName();
+    const localRef = asLocalRef(branch);
+    const commitHash = await repo.readHead(localRef);
+
+    if (!commitHash) {
+        console.log("No commits yet.");
+        return;
+    }
+
+    const commit = await repo.readCommit(commitHash);
+    const commitTree = await repo.readTree(commit.tree);
+    const workingTree = await repo.buildTreeFromWorkingDir();
+
+    const diffs = await repo.diffTreeRecursive(commitTree, workingTree);
+
+    if (diffs.length === 0) {
+        console.log("No changes.");
+        return;
+    }
+
+    console.log(`Changes between HEAD (${commitHash.substring(0, 8)}) and working directory:`);
+    console.log("");
+
+    for (const diff of diffs) {
+        const status = diff.type === "deleted" ? "deleted" : (diff.type === "added" ? "new file" : "modified");
+        const path = diff.path;
+        console.log(`${status.padEnd(11)} ${path}`);
+    }
+}
+
 
