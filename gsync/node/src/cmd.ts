@@ -1,13 +1,15 @@
 import * as path from "path";
 import { Repo, sameExceptCRLF } from "./git.js";
 import { DownloadableObjectStore, GIT_DIR_NAME, Sync, SyncFactory } from "./sync.js";
-import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, asPathInRepo, Author, BranchName, FilePath, Hash, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, IgnoreState, CommitEntry } from "./types.js";
+import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, asPathInRepo, Author, BranchName, FilePath, Hash, PathInRepo, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, IgnoreState, CommitEntry } from "./types.js";
 import {promises as fs} from "fs";
 import { Index } from "./index_file.js";
 import { FileBasedObjectStore, factory as offlineObjectStoreFactory} from "./objects.js";
 import { getSplashScreen } from "./splash.js";
 import { GSYNC_CONFLICT_DIR } from "./constants.js";
 import { exists, join } from "./util.js";
+import * as difflib from "difflib";
+
 const splashScreen=await getSplashScreen();
 export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
   try{
@@ -153,7 +155,7 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
                 return;
             }
         case "diff":
-            return await diffCmd(cwd);
+            return await diffCmd(cwd, args);
         default:
             throw new Error(`Unknown command: ${command}`);
     }
@@ -724,7 +726,9 @@ export async function mergeBranch(dir: string, sourceBranchName: string): Promis
     }
 }
 
-export async function diffCmd(dir: string): Promise<void> {
+export async function diffCmd(dir: string, args: string[]): Promise<void> {
+    const verbose = args.includes("--verbose") || args.includes("-v");
+
     const gitDir = await findGitDir(asFilePath(dir));
     const syncf = new SyncFactory(gitDir);
     const sync = await syncf.load();
@@ -757,6 +761,57 @@ export async function diffCmd(dir: string): Promise<void> {
         const status = diff.type === "deleted" ? "deleted" : (diff.type === "added" ? "new file" : "modified");
         const path = diff.path;
         console.log(`${status.padEnd(11)} ${path}`);
+
+        if (verbose) {
+            if (diff.type === "modified") {
+                const oldText = await repo.readBlobAsText(diff.oldHash);
+                const newPath = repo.toFilePath(diff.path);
+                const newText = await fs.readFile(newPath, "utf-8");
+                showLineDiff(path, oldText, newText);
+            } else if (diff.type === "added") {
+                const newPath = repo.toFilePath(diff.path);
+                const newText = await fs.readFile(newPath, "utf-8");
+                showLines(path, newText, "+");
+            } else if (diff.type === "deleted") {
+                const oldText = await repo.readBlobAsText(diff.oldHash);
+                showLines(path, oldText, "-");
+            }
+        }
+    }
+}
+
+function showLineDiff(path: PathInRepo, oldText: string, newText: string): void {
+    const oldLines = oldText.split("\n");
+    const newLines = newText.split("\n");
+    if (oldLines.length > 0 && oldLines[oldLines.length - 1] === "") oldLines.pop();
+    if (newLines.length > 0 && newLines[newLines.length - 1] === "") newLines.pop();
+    const s = new difflib.SequenceMatcher(null, oldLines, newLines);
+    const opcodes = s.getOpcodes();
+    let changed = false;
+    for (const [tag, i1, i2, j1, j2] of opcodes) {
+        if (tag === "equal") continue;
+        if (!changed) {
+            console.log(`  @@ ${path} @@`);
+            changed = true;
+        }
+        if (tag === "replace" || tag === "delete") {
+            for (let i = i1; i < i2; i++) {
+                console.log(`  -${oldLines[i]}`);
+            }
+        }
+        if (tag === "replace" || tag === "insert") {
+            for (let j = j1; j < j2; j++) {
+                console.log(`  +${newLines[j]}`);
+            }
+        }
+    }
+}
+
+function showLines(path: PathInRepo, text: string, prefix: string): void {
+    const lines = text.split("\n");
+    if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+    for (const line of lines) {
+        console.log(`  ${prefix}${line}`);
     }
 }
 
