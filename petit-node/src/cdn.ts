@@ -25,7 +25,7 @@ export function createCDNModule(e:INPMEntry, modval:ModuleValue) {
     }
     return module;
 }*/
-export async function retryloadCDN(aliases:IAliases,e:IBuiltinModuleEntry){
+export function retryloadCDN(aliases:IAliases,e:IBuiltinModuleEntry){
     return Object.assign(new Error(`Loading '${e.name}' from '${e.url()}'. Try again.`),{
         retryPromise: loadCDN(aliases, e).catch(e=>console.error(e)),
     });
