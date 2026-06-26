@@ -15,7 +15,8 @@
     "bootpack": "cd bootpack && npx webpack",
     "gio": "bash scripts/copy-to-gio.sh",
     "bio": "npm run build-dev && npm run gio",
-    "bootloader": "node server.mjs"
+    "bootloader": "node server.mjs",
+    "graph": "npx depcruise petit-node/src --output-type dot > graph.dot && dot -T svg graph.dot > graph.svg"
   },
   "private": true,
   "keywords": [],
@@ -38,11 +39,12 @@
     "webcartridge"
   ],
   "devDependencies": {
-    "assert": "^2.1.0",
     "@hoge1e3/is-plain-object": "^1.0.0",
     "@hoge1e3/sfile": "^2.0.1",
     "@hoge1e3/sfile-node": "^1.5.2",
     "@types/web": "^0.0.278",
+    "assert": "^2.1.0",
+    "dependency-cruiser": "^18.0.0",
     "madge": "^8.0.0"
   },
   "chromium-args": "--enable-logging=stderr",
