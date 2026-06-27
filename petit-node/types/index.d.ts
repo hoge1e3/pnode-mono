@@ -169,6 +169,10 @@ export interface IFileBasedModuleEntry extends _IModuleEntry{
     _shouldReload():boolean;
     moduleType():FileBasedModuleType,
 }
+export type CDNConfig={
+    global?: string,
+    url?: string,
+}
 export interface IBuiltinModuleEntry extends _IModuleEntry {// includes cdn
     name: string,
     url(): string,
@@ -228,6 +232,7 @@ export interface PNode_nodef {
   require(path:string, base:string):ModuleValue;
   require(porf:string|SFile, base?:SFile|string):ModuleValue;
   clone(_globalThis:any):PNode;
+  configureCDN(name: string, conf:CDNConfig):void;
 }
 export interface PNode extends PNode_nodef{
   default: PNode;

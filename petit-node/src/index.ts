@@ -20,7 +20,7 @@ import type { AliasHash, BootOptions, Core, ESModuleCompilerHandlers,
     Module, ModuleValue, PNode, PNode_nodef, ScriptingContext, TFS } from "../types/index.js";
 import {require} from "./CommonJS.js";
 export {require, CJSCompiler} from "./CommonJS.js";
-import { BuiltinModuleEntry, CompiledCJS, CompiledESModule, FileBasedModuleEntry, isBuiltinModuleEntry, resolveModuleEntry } from "./Module.js";
+import { BuiltinModuleEntry, CompiledCJS, CompiledESModule, configureCDN, FileBasedModuleEntry, isBuiltinModuleEntry, resolveModuleEntry } from "./Module.js";
 export { CompiledESModule, FileBasedModuleEntry as ModuleEntry } from "./Module.js";
 import { jsToBlobURL } from "./scriptTag.js";
 import { JSZip,} from "@hoge1e3/fs2";
@@ -378,6 +378,7 @@ export function createInstance(_globalThis:any):PNode {
         clone(_globalThis:any):PNode {
             return createInstance(_globalThis);
         },
+        configureCDN,
         //default:undefined as (PNode|undefined),
     };
     return Object.assign(instance_nodef,{default:instance_nodef as PNode});
