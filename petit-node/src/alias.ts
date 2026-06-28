@@ -66,7 +66,7 @@ export default ${valueName};${nondefs}
     return blobUrl;
 }
 // name is '@foo/bar', no builtin:// (for compatibilities)
-addAlias(name:string, value:ModuleValue, properties?:string[]) {
+addAlias(name:string, value:ModuleValue, properties?:string[]):BuiltinModule {
     const ginf=this.getGlobalInfo();
     const path=asBuiltinKey(name);
     const keys=properties||Object.keys(value as any);
@@ -79,7 +79,9 @@ ${valueToESCode(valueName, value, keys)}
 //# sourceURL=pnode-alias/${name}
 `;
     let blobUrl = jsToBlobURL(this.scriptingContext, jsCodeString);
-    ginf.value.aliases.add(new BuiltinModule(path, value, blobUrl));
+    const mod=new BuiltinModule(path, value, blobUrl);
+    ginf.value.aliases.add(mod);
+    return mod;
 }
 getGlobalInfo(){
     if (!this.gbl_info) throw new Error("this.gbl_info not set");

@@ -32,6 +32,7 @@ import * as stream from "./polyfills/stream.js";
 import { DeviceManager } from "petit-fs/src/vfsUtil.js";
 import { loadCDN, retryloadCDN } from "./cdn.js";
 import { bind } from "./ESModuleGenerator.js";
+import MutablePromise from "mutable-promise";
 
 declare let globalThis:any;
 //declare let global:any;
@@ -103,6 +104,14 @@ function createScriptingContext(g:any):ScriptingContext {
         URL: g.URL,
         Function: g.Function,
         eval: (s)=>g.eval(s),
+        loadScriptTag: (url:string)=>{
+            const m=new MutablePromise<void>();
+            const s=g.document.createElement("script");
+            s.setAttribute("src",url);
+            s.addEventListener("load",()=>m.resolve());
+            g.document.body.appendChild(s);
+            return m;
+        },
         importModule: new g.Function("url","return import(/* webpackIgnore: true */url);"),  
     };
 }

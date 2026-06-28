@@ -104,7 +104,7 @@ export class ESModuleCompiler {
                 if (isBuiltinModuleEntry(e)) {
                     //if (!isBuiltinModuleEntry(e)) throw new Error(`Module '${path}' not found`);
                     compiled=await loadCDN(aliases, e);
-                    // TODO? create url for global-polluted module
+                    // TODO: create url for global-polluted module
                 } else {
                     const circular=this.depChecker.add(entry.file.path(), e.file.path());
                     if (circular) {

@@ -46,16 +46,16 @@ async function _loadCDN(aliases:IAliases, e:IBuiltinModuleEntry):Promise<Builtin
             return g[globalName];
         }
         const url = e.url();
-        await aliases.scriptingContext.importModule(url);
+        await aliases.scriptingContext.loadScriptTag(url);
         const modval = g[globalName];
         if (!modval) {
             throw new Error(
                 `Global variable "${globalName}" not found after loading '${name}'`
             );
         }
-        const module=new BuiltinModule(e.cacheKey(),modval,url);
-        aliases.cache.add(module);
-        return module;
+        //const module=new BuiltinModule(e.cacheKey(),modval,url);
+        return aliases.addAlias(name, modval);
+        //aliases.cache.add(module);
     }
     const url = e.url();
     const modval=await aliases.scriptingContext.importModule(url);
