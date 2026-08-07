@@ -23,11 +23,11 @@ function edits(a:string[],b:string[]):Edit[]{
  return out;
 }
 
-export function merge3(ancestor:string,mine:string,theirs:string):string{
+export function merge3(ancestor:string,mine:string,theirs:string):[string,boolean]{
  const base=toLines(ancestor);
  const me=edits(base,toLines(mine));
  const th=edits(base,toLines(theirs));
- let mi=0,ti=0,pos=0,res:string[]=[];
+ let mi=0,ti=0,pos=0,res:string[]=[],hasConflict=false;
  while(pos<=base.length){
   const m=me[mi],t=th[ti];
   const ns=Math.min(m?m.start:1e9,t?t.start:1e9,base.length);
@@ -43,6 +43,7 @@ export function merge3(ancestor:string,mine:string,theirs:string):string{
     if(m.end==t.end && JSON.stringify(m.lines)==JSON.stringify(t.lines)){
       res.push(...m.lines);
     }else{
+      hasConflict=true;
       res.push("<<<<<<< MINE");
       res.push(...m.lines);
       res.push("=======");
@@ -53,5 +54,5 @@ export function merge3(ancestor:string,mine:string,theirs:string):string{
   }
   if(pos<base.length){res.push(base[pos++]);}
  }
- return res.join("\n");
+ return [res.join("\n"),hasConflict];
 }

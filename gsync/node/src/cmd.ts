@@ -8,7 +8,9 @@ import { FileBasedObjectStore, factory as offlineObjectStoreFactory} from "./obj
 import { getSplashScreen } from "./splash.js";
 import { GSYNC_CONFLICT_DIR } from "./constants.js";
 import { exists, join } from "./util.js";
-import * as difflib from "difflib";
+//import * as difflib from "difflib";
+import { diffLines } from "diff";
+
 
 const splashScreen=await getSplashScreen();
 export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
@@ -780,6 +782,41 @@ export async function diffCmd(dir: string, args: string[]): Promise<void> {
     }
 }
 
+
+function showLineDiff(
+  path: PathInRepo,
+  oldText: string,
+  newText: string
+): void {
+  const changes = diffLines(oldText, newText);
+  let changed = false;
+
+  for (const change of changes) {
+    if (!change.added && !change.removed) continue;
+    if (!changed) {
+      console.log(`  @@ ${path} @@`);
+      changed = true;
+    }
+
+    const lines = change.value.split("\n");
+
+    // diffLines() は末尾の改行を含む場合、
+    // split() の結果の最後に "" が入るので除去する
+    if (lines.length > 0 && lines[lines.length - 1] === "") {
+      lines.pop();
+    }
+
+    if (change.removed) {
+      for (const line of lines) {
+        console.log(`  -${line}`);
+      }
+    } else if (change.added) {
+      for (const line of lines) {
+        console.log(`  +${line}`);
+      }
+    }
+  }
+}/*
 function showLineDiff(path: PathInRepo, oldText: string, newText: string): void {
     const oldLines = oldText.split("\n");
     const newLines = newText.split("\n");
@@ -805,7 +842,7 @@ function showLineDiff(path: PathInRepo, oldText: string, newText: string): void 
             }
         }
     }
-}
+}*/
 
 function showLines(path: PathInRepo, text: string, prefix: string): void {
     const lines = text.split("\n");
