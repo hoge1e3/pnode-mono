@@ -1,5 +1,5 @@
 import * as path from "path";
-import { Repo, sameExceptCRLF } from "./git.js";
+import { isUtf8Text, Repo, sameExceptCRLF, stripCR } from "./git.js";
 import { DownloadableObjectStore, GIT_DIR_NAME, Sync, SyncFactory } from "./sync.js";
 import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, asPathInRepo, Author, BranchName, FilePath, Hash, PathInRepo, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, IgnoreState, CommitEntry } from "./types.js";
 import {promises as fs} from "fs";
@@ -10,6 +10,7 @@ import { GSYNC_CONFLICT_DIR } from "./constants.js";
 import { exists, join } from "./util.js";
 //import * as difflib from "difflib";
 import { diffLines } from "diff";
+import { merge3 } from "./merge3.js";
 
 
 const splashScreen=await getSplashScreen();
@@ -706,14 +707,26 @@ export async function mergeBranch(dir: string, sourceBranchName: string): Promis
             const sourceObj = await repo.readObject(c.b);
             const localPath = repo.toFilePath(c.path);
             const localContent = await fs.readFile(localPath);
+            const baseContent = c.base ? (await repo.readObject(c.base)).content : Buffer.from([]);
             if (!sameExceptCRLF(localContent, sourceObj.content)) {
-                const postfix = `(${sourceCommitHash.substring(0, 8)})`;
-                const postfixedPath = await conflictedFile(repo, localPath, postfix);
-                confpaths.push(repo.toPathInRepo(postfixedPath));
-                if (confpaths.length === 1) console.log("CONFLICT");
-                console.log(`Conflict saved at ${postfixedPath}`);
-                await fs.mkdir(path.dirname(postfixedPath), { recursive: true });
-                await fs.writeFile(postfixedPath, sourceObj.content);
+                const baseContent_str=isUtf8Text(baseContent);
+                const localContent_str=isUtf8Text(localContent);
+                const sourceContent_str=isUtf8Text(sourceObj.content);
+                const [merged, hasConflict]=
+                    baseContent_str&&localContent_str&&sourceContent_str ?
+                    merge3( baseContent_str, localContent_str, sourceContent_str):
+                    ["",false];
+                if (hasConflict) {
+                    const postfix = `(${sourceCommitHash.substring(0, 8)})`;
+                    const postfixedPath = await conflictedFile(repo, localPath, postfix);
+                    confpaths.push(repo.toPathInRepo(postfixedPath));
+                    if (confpaths.length === 1) console.log("CONFLICT");
+                    console.log(`Conflict saved at ${postfixedPath}`);
+                    await fs.mkdir(path.dirname(postfixedPath), { recursive: true });
+                    await fs.writeFile(postfixedPath, sourceObj.content);
+                } else {
+                    await fs.writeFile(localPath,merged);
+                }
             }
         }
         if (confpaths.length > 0) {
