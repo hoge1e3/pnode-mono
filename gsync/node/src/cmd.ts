@@ -724,6 +724,11 @@ export async function mergeBranch(dir: string, sourceBranchName: string): Promis
                     console.log(`Conflict saved at ${postfixedPath}`);
                     await fs.mkdir(path.dirname(postfixedPath), { recursive: true });
                     await fs.writeFile(postfixedPath, sourceObj.content);
+                    if (merged.length>0) {
+                        const postfix = `(merge-${sourceCommitHash.substring(0, 8)})`;
+                        const postfixedPath = await conflictedFile(repo, localPath, postfix);
+                        await fs.writeFile(postfixedPath, merged);
+                    }
                 } else {
                     await fs.writeFile(localPath,merged);
                 }
