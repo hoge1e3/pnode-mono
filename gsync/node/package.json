@@ -16,7 +16,7 @@
     "type": "module",
     "devDependencies": {
         "@types/difflib": "^0.2.7",
-        "@types/node": "^24.7.2",
+        "@types/node": "^25.0.3",
         "@types/web": "^0.0.278",
         "@typescript-eslint/eslint-plugin": "^8.57.0",
         "@typescript-eslint/parser": "^8.57.0",

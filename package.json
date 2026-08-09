@@ -36,7 +36,8 @@
     "fs2",
     "petit-node",
     "bootpack",
-    "webcartridge"
+    "webcartridge",
+    "gsync/node"
   ],
   "devDependencies": {
     "@hoge1e3/is-plain-object": "^1.0.0",

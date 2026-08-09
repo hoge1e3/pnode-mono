@@ -128,34 +128,7 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
             {
                 // Reset working tree and local branch to remote latest commit. Branch optional.
                 const targetBranch = args.length>0 && args[0]? args[0] : undefined;
-                const gitDir = await findGitDir(asFilePath(cwd));
-                const syncf = new SyncFactory(gitDir);
-                const sync = await syncf.load();
-                const repo = sync.repo;
-                const branch = targetBranch ? asBranchName(targetBranch) : await repo.getCurrentBranchName();
-
-                const remoteHead = await sync.getRemoteHead(branch);
-                if (!remoteHead) throw new Error(`No remote HEAD for branch '${branch}'`);
-
-                const localRef = asLocalRef(branch);
-                const localCommitHash = await repo.readHead(localRef);
-                const remoteCommit = await repo.readCommit(remoteHead);
-                const remoteTree = await repo.readTree(remoteCommit.tree);
-
-                if (localCommitHash) {
-                    const localCommit = await repo.readCommit(localCommitHash);
-                    const localTree = await repo.readTree(localCommit.tree);
-                    const diff = await repo.diffTreeRecursive(localTree, remoteTree);
-                    await repo.applyDiff(diff);
-                } else {
-                    await repo.checkoutTreeToDir(remoteCommit.tree, repo.workingDir());
-                }
-
-                // clear merge state and set local ref to remote
-                await repo.writeMergeHead();
-                await repo.updateHead(localRef, remoteHead);
-                console.log(`Reset '${branch}' to remote ${remoteHead}`);
-                return;
+                return await resetHard(cwd, targetBranch);
             }
         case "diff":
             return await diffCmd(cwd, args);
@@ -164,6 +137,37 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
     }
   }finally {await splashScreen.hide();} 
 }
+async function resetHard(cwd: string, targetBranch: string | undefined) {
+    const gitDir = await findGitDir(asFilePath(cwd));
+    const syncf = new SyncFactory(gitDir);
+    const sync = await syncf.load();
+    const repo = sync.repo;
+    const branch = targetBranch ? asBranchName(targetBranch) : await repo.getCurrentBranchName();
+
+    const remoteHead = await sync.getRemoteHead(branch);
+    if (!remoteHead) throw new Error(`No remote HEAD for branch '${branch}'`);
+
+    const localRef = asLocalRef(branch);
+    const localCommitHash = await repo.readHead(localRef);
+    const remoteCommit = await repo.readCommit(remoteHead);
+    const remoteTree = await repo.readTree(remoteCommit.tree);
+
+    if (localCommitHash) {
+        const localCommit = await repo.readCommit(localCommitHash);
+        const localTree = await repo.readTree(localCommit.tree);
+        const diff = await repo.diffTreeRecursive(localTree, remoteTree);
+        await repo.applyDiff(diff);
+    } else {
+        await repo.checkoutTreeToDir(remoteCommit.tree, repo.workingDir());
+    }
+
+    // clear merge state and set local ref to remote
+    await repo.writeMergeHead();
+    await repo.updateHead(localRef, remoteHead);
+    console.log(`Reset '${branch}' to remote ${remoteHead}`);
+    return;
+}
+
 export async function scan(cwd:string, 
 showRepo:boolean, showUrl:boolean, 
 showKey:boolean,shell:boolean){
