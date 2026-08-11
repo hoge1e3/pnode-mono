@@ -447,6 +447,7 @@ export async function sync(dir: string,
             const remoteObj=await repo.readObject(c.b);
             const localPath = repo.toFilePath(c.path);
             const localContent = await fs.readFile(localPath);
+            const baseContent = c.base ? (await repo.readObject(c.base)).content : Buffer.from([]);
             if (!sameExceptCRLF(localContent, remoteObj.content)) {
                 const winner = 
                     conflictResolutionPolicy==="ignoreLocal"? "remote":
@@ -456,13 +457,31 @@ export async function sync(dir: string,
                         (await fs.stat(localPath)).mtime.getTime()?"remote":"local"):
                     null;
                 if (winner===null) {
-                    const postfix=`(${remoteCommitHash.substring(0,8)})`;
-                    const postfixedPath =await conflictedFile(repo, localPath, postfix);
-                    confpaths.push(repo.toPathInRepo(postfixedPath));
-                    if (confpaths.length==1) console.log("CONFLICT");
-                    console.log(`Conflict saved at ${postfixedPath}`);
-                    await fs.mkdir(path.dirname(postfixedPath),{recursive:true});
-                    await fs.writeFile(postfixedPath, remoteObj.content);
+                    //TODO: same as mergeBranch
+                    const baseContent_str=isUtf8Text(stripCR(baseContent));
+                    const localContent_str=isUtf8Text(stripCR(localContent));
+                    const remoteContent_str=isUtf8Text(stripCR(remoteObj.content));
+                    const [merged, hasConflict]=
+                        baseContent_str&&localContent_str&&remoteContent_str ?
+                        merge3( baseContent_str, localContent_str, remoteContent_str):
+                        ["",true];
+                    if (hasConflict) {
+                        const postfix=`(${remoteCommitHash.substring(0,8)})`;
+                        const postfixedPath =await conflictedFile(repo, localPath, postfix);
+                        confpaths.push(repo.toPathInRepo(postfixedPath));
+                        if (confpaths.length==1) console.log("CONFLICT");
+                        console.log(`Conflict saved at ${postfixedPath}`);
+                        await fs.mkdir(path.dirname(postfixedPath),{recursive:true});
+                        await fs.writeFile(postfixedPath, remoteObj.content);
+                        if (merged.length>0) {
+                            const postfix = `(merge-${remoteCommitHash.substring(0, 8)})`;
+                            const postfixedPath = await conflictedFile(repo, localPath, postfix);
+                            console.log(`Conflict-merged saved at ${postfixedPath}`);
+                            await fs.writeFile(postfixedPath, merged);
+                        }
+                    } else {
+                        await fs.writeFile(localPath,merged);
+                    }
                 } else if (winner==="remote") {
                     console.log(`Overwrite ${localPath}`); 
                     await fs.writeFile(localPath, remoteObj.content);
@@ -713,13 +732,14 @@ export async function mergeBranch(dir: string, sourceBranchName: string): Promis
             const localContent = await fs.readFile(localPath);
             const baseContent = c.base ? (await repo.readObject(c.base)).content : Buffer.from([]);
             if (!sameExceptCRLF(localContent, sourceObj.content)) {
-                const baseContent_str=isUtf8Text(baseContent);
-                const localContent_str=isUtf8Text(localContent);
-                const sourceContent_str=isUtf8Text(sourceObj.content);
+                //TODO: same as sync
+                const baseContent_str=isUtf8Text(stripCR(baseContent));
+                const localContent_str=isUtf8Text(stripCR(localContent));
+                const sourceContent_str=isUtf8Text(stripCR(sourceObj.content));
                 const [merged, hasConflict]=
                     baseContent_str&&localContent_str&&sourceContent_str ?
                     merge3( baseContent_str, localContent_str, sourceContent_str):
-                    ["",false];
+                    ["",true];
                 if (hasConflict) {
                     const postfix = `(${sourceCommitHash.substring(0, 8)})`;
                     const postfixedPath = await conflictedFile(repo, localPath, postfix);
@@ -731,6 +751,7 @@ export async function mergeBranch(dir: string, sourceBranchName: string): Promis
                     if (merged.length>0) {
                         const postfix = `(merge-${sourceCommitHash.substring(0, 8)})`;
                         const postfixedPath = await conflictedFile(repo, localPath, postfix);
+                        console.log(`Conflict-merged saved at ${postfixedPath}`);
                         await fs.writeFile(postfixedPath, merged);
                     }
                 } else {

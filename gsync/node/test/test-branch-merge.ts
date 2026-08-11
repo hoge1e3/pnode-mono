@@ -6,6 +6,7 @@ import { commit, switchBranch, mergeBranch, init, sync, clone } from "../src/cmd
 import { asBranchName, asFilePath, asLocalRef } from "../src/types.js";
 import { serverUrl } from "./test-settings.js";
 import { Sync, SyncFactory } from "../src/sync.js";
+import { merge3 } from "../src/merge3.js";
 const cleanups: (() => any)[] = [];
 function write(file: string, content: string) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -100,13 +101,17 @@ export async function testBranchSwitchAndMerge() {
   assert.ok(Array.isArray(mergeStatus3), "should return conflict paths array");
   if (Array.isArray(mergeStatus3)) {
     console.log(mergeStatus3);
-    let hasFile1=false;
+    let hasFile1=false, hasFile1Merge=false;
     for (let st of mergeStatus3) {
       if (st.match(/file1\([0-9a-f]+\).txt/)) hasFile1=true;
+      //if (st.match(/file1\(merge\-[0-9a-f]+\).txt/)) hasFile1Merge=true;
     }
     if (!hasFile1) {
       assert.fail("conflict should be on file1.txt");
     }
+    /*if (!hasFile1Merge) {
+      assert.fail("conflict merge should be on file1.txt");
+    }*/
   } else {
     assert.fail("mergeStatus3 should be an array");
   }
@@ -171,9 +176,24 @@ export async function testMultiRepoMerge() {
   assert.ok(fs.existsSync(path.join(repo1Dir, "repo1-only.txt")), "repo1-only.txt should exist in repo1");
   assert.ok(fs.existsSync(path.join(repo2Dir, "repo2-only.txt")), "repo2-only.txt should exist in repo2");
 }
+async function testMerge3(){
+  //assert.equal(
+  const m=merge3(`
+abc
+`,`
+abc
+fed
+`,`
+abc
+def
+`);
+    console.log(m);
+  assert.equal(m[0],'\nabc\n\n<<<<<<< MINE\nfed\n\n=======\ndef\n\n>>>>>>> THEIRS');
+}
 
 async function main() {
   try {
+    await testMerge3();
     await testBranchSwitchAndMerge();
     await testMultiRepoMerge();
     for (const cleanup of cleanups) {

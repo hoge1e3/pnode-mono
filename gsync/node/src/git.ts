@@ -936,11 +936,11 @@ export class RecursiveGitIgnore{
     //this.stack.pop();
   }
 }
-export function isUtf8Text(buffer:Buffer<ArrayBufferLike>):string|null {
+export function isUtf8Text(buffer:Uint8Array<ArrayBufferLike>):string|null {
   try {
     const text = new TextDecoder().decode(buffer);
-    // そもそも\r\nがないのだったら置換されないのでnull(そのまま返す)
-    if (!text.includes("\r\n")) return null;
+    // そもそも\r\nがないのだったら置換されないのでそのまま返す
+    //if (!text.includes("\r\n")) return text;
     // 制御文字（タブ、改行、キャリッジリターンは許可）
     const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
     if (controlChars.test(text)) {
@@ -959,7 +959,7 @@ export function isUtf8Text(buffer:Buffer<ArrayBufferLike>):string|null {
   }
 }
 
-export function stripCR(content: Buffer<ArrayBufferLike>): Uint8Array<ArrayBufferLike> {
+export function stripCR(content: Uint8Array<ArrayBufferLike>): Uint8Array<ArrayBufferLike> {
   const t=isUtf8Text(content);
   if (!t) return content;
   return new TextEncoder().encode(t.replace(/\r\n/g,"\n"));
