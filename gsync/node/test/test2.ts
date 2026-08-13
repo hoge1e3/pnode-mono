@@ -9,6 +9,7 @@ import { asFilePath, asBranchName, asLocalRef, isHash, FilePath, Hash } from "..
 import { GIT_DIR_NAME, Sync, SyncFactory } from "../src/sync.js";
 import { factory as offlineObjectStoreFactory } from "../src/objects.js";
 import { serverUrl } from "./test-settings.js";
+import { merge3 } from "../src/merge3.js";
 async function offlineRepo(gitDir:FilePath) {
     const objectStore=await offlineObjectStoreFactory(gitDir);
     const repo=new Repo(gitDir,objectStore);
@@ -146,10 +147,39 @@ export async function test_scenario_merge(originDir:FilePath, cloneDir:FilePath)
 
 
 }
+async function test_merge3() {
+  const base=`
+This
+is
+test
+`;
+  const ver1=`
+Hello
+This
+is
+test
+`;
+  const ver2=`
+This
+is
+test
+Goodby
+`;
+  const merged=merge3(base, ver1, ver2);
+  assert.equal(merged[0], `
+Hello
+This
+is
+test
+Goodby
+`);
+
+}
 export async function main(){
   if (!fs.existsSync("../cotest/.gsync")) {
       fs.mkdirSync("../cotest/.gsync", { recursive: true });
   }
+  await test_merge3();
   await test_scenario_basic_sync();
   console.log("Cleanup");
   for (let f of cleanups) await f();

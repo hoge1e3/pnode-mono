@@ -3,21 +3,26 @@ import { diffLines, Change } from "diff";
 type Edit={start:number,end:number,lines:string[]};
 
 function toLines(s:string){return s.split(/\r?\n/);}
+function chunkLines(s:string):string[]{
+  const l=s.split(/\r?\n/);
+  if(l[l.length-1]==="")l.pop();
+  return l;
+}
 function edits(a:string[],b:string[]):Edit[]{
  const changes=diffLines(a.join("\n"),b.join("\n"));
  let ai=0; const out:Edit[]=[];
  for(let i=0;i<changes.length;i++){
   const c=changes[i] as any;
-  if(!c.added&&!c.removed){ai+=toLines(c.value).length;continue;}
+  if(!c.added&&!c.removed){ai+=chunkLines(c.value).length;continue;}
   if(c.removed){
-    const rem=toLines(c.value); let add:string[]=[];
+    const rem=chunkLines(c.value); let add:string[]=[];
     if(i+1<changes.length && (changes[i+1] as any).added){
-      add=toLines((changes[++i] as any).value);
+      add=chunkLines((changes[++i] as any).value);
     }
     out.push({start:ai,end:ai+rem.length,lines:add});
     ai+=rem.length;
   }else if(c.added){
-    out.push({start:ai,end:ai,lines:toLines(c.value)});
+    out.push({start:ai,end:ai,lines:chunkLines(c.value)});
   }
  }
  return out;
