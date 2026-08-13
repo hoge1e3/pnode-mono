@@ -176,24 +176,9 @@ export async function testMultiRepoMerge() {
   assert.ok(fs.existsSync(path.join(repo1Dir, "repo1-only.txt")), "repo1-only.txt should exist in repo1");
   assert.ok(fs.existsSync(path.join(repo2Dir, "repo2-only.txt")), "repo2-only.txt should exist in repo2");
 }
-async function testMerge3(){
-  //assert.equal(
-  const m=merge3(`
-abc
-`,`
-abc
-fed
-`,`
-abc
-def
-`);
-    console.log(m);
-  assert.equal(m[0],'\nabc\n\n<<<<<<< MINE\nfed\n\n=======\ndef\n\n>>>>>>> THEIRS');
-}
 
 async function main() {
   try {
-    await testMerge3();
     await testBranchSwitchAndMerge();
     await testMultiRepoMerge();
     for (const cleanup of cleanups) {

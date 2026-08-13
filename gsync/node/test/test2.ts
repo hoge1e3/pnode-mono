@@ -173,6 +173,47 @@ is
 test
 Goodby
 `);
+  assert.equal(merged[1], false, "no conflict expected");
+
+  //
+  // 同じ行を両側で別の内容に変更 → コンフリクト
+  //
+  const cbase=`This
+is
+test
+`;
+  const cver1=`Hello
+is
+test
+`;
+  const cver2=`Goodby
+is
+test
+`;
+  const conflict=merge3(cbase, cver1, cver2);
+  assert.equal(conflict[1], true, "conflict expected");
+  assert.equal(conflict[0], `<<<<<<< MINE
+Hello
+=======
+Goodby
+>>>>>>> THEIRS
+is
+test
+`);
+
+  //
+  // 同じ行を両側で同じ内容に変更 → コンフリクトなし
+  //
+  const same=merge3(cbase, cver1, cver1);
+  assert.equal(same[1], false, "same change on both sides is not a conflict");
+  assert.equal(same[0], cver1);
+
+  //
+  // 片側のみ変更 → コンフリクトなし
+  //
+  const one=merge3(cbase, cbase, cver2);
+  assert.equal(one[1], false);
+  assert.equal(one[0], cver2);
 
 }
 export async function main(){
