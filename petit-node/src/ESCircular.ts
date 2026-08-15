@@ -1,10 +1,10 @@
 import type {ExportAllDeclaration, ExportDefaultDeclaration, ExportNamedDeclaration, ImportDeclaration, Literal} from "acorn";
-import * as espree from 'espree';
 import { simple, SimpleVisitors } from "acorn-walk";
 import type { SFile } from "@hoge1e3/sfile";
 import type { IAliases } from "../types/index.js";
 import { jsToBlobURL } from "./scriptTag.js";
 import { asBuiltinKey } from "./alias.js";
+import { astCache } from "./AstCache.js";
 
 export async function genCircularResolver(aliases:IAliases, file: SFile):Promise<string> {
     let src:string;
@@ -14,7 +14,7 @@ export async function genCircularResolver(aliases:IAliases, file: SFile):Promise
         await (e as any).retryPromise;
         src=file.text();
     }
-    let ids=exportedIdentifiers(src);
+    let ids=exportedIdentifiers(file, src);
     /*if (ids.includes("default")) {
         throw new Error(file+": Cannot resolve circular dependencies with default export.");
     }*/
@@ -30,11 +30,11 @@ pNode.importModule(${JSON.stringify(file.path())}).then((m)=>{
     console.log("circ", file.path(), msrc);
     return jsToBlobURL(aliases.scriptingContext, msrc);
 }
-export function exportedIdentifiers(jssrc: string): string[] {
-  const ast = espree.parse(jssrc, {
+export function exportedIdentifiers(file: SFile, jssrc: string): string[] {
+  const ast = astCache.get(file, {
     ecmaVersion: "latest",
     sourceType: "module",
-  });
+  }, jssrc);
 
   const identifiers: string[] = [];
 

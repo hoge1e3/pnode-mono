@@ -1,9 +1,9 @@
 import type {ExportAllDeclaration, ExportDefaultDeclaration, ExportNamedDeclaration, ImportDeclaration, Literal} from "acorn";
-import * as espree from 'espree';
 import { simple, SimpleVisitors } from "acorn-walk";
 import { CompiledESModule} from "./Module.js";
 import { FileBasedModuleEntry } from "./Module.js";
 import { Module, ScriptingContext } from "../types/index.js";
+import { astCache } from "./AstCache.js";
 
 
 type URLConverter = {
@@ -26,13 +26,12 @@ export async function convert(sctx:ScriptingContext, entry: FileBasedModuleEntry
   const file=entry.file;
   try {
     const sourceCode=file.text();
-    let ast;
-    ast = espree.parse(sourceCode, {
+    const ast=astCache.get(file, {
       sourceType: 'module',
       loc: true,
       range: true,
       ecmaVersion: 2024,
-    });
+    }, sourceCode);
     const replPromises=[] as Promise<Replacement>[];
     const convLiteral=(source: Literal)=>{
       const range=source.range||[0,0];

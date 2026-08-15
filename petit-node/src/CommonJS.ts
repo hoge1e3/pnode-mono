@@ -4,7 +4,7 @@ import * as FS from "@hoge1e3/fs2";
 import { Aliases, asFileKey } from "./alias.js";
 import { CompiledCJS, FileBasedModuleEntry, isBuiltinModuleEntry, isFileBasedModuleEntry, resolveModuleEntry } from "./Module.js";
 import {ex} from "./errors.js";
-import * as espree from 'espree';
+import { astCache } from "./AstCache.js";
 import { simple, SimpleVisitors } from "acorn-walk";
 import { loadCDN, retryloadCDN } from "./cdn.js";
 type RequireFunc=((path:string)=>ModuleValue)&{
@@ -144,7 +144,7 @@ export async function guessDependencies(entry: FileBasedModuleEntry):Promise<Set
     // parse using esprima and extract require("string-literal")
     // and get ModuleEntry using ModuleEntry.resolve("require", path,base);
     const source=await file.async().text();
-    const ast=espree.parse(source);
+    const ast=astCache.get(file, undefined, source);
     const deps:Set<FileBasedModuleEntry>=new Set();
     const visitors: SimpleVisitors<unknown> = {
         CallExpression(node) {
