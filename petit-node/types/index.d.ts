@@ -14,6 +14,7 @@ import { IFileSystem } from "petit-fs/src/fs/types.js";
 import { DeviceManager } from "petit-fs/src/vfsUtil.js";
 import { Fstab } from "petit-fs/src/types.js";
 import { EventHandler } from "@hoge1e3/events";
+import { BuiltinModule } from "../src/alias";
 export type TFS={
     get(path:string):SFile;
     setDefaultPolicy(policy?:Policy):void;
@@ -64,7 +65,7 @@ export interface Module{
 }
 export interface IAliases {
     addAliases(p:AliasHash):void;
-    addAlias(path:string, value:ModuleValue, properties?:string[]):void;
+    addAlias(path:string, value:ModuleValue, properties?:string[]):BuiltinModule;
     cache:IModuleCache;
     invalidModules:Set<CacheKey>; // load-failed cdn / unsupported node-builtin modules 
     addURL(module:ICompiledCJS/*, properties?:string[]*/):void;
@@ -169,6 +170,10 @@ export interface IFileBasedModuleEntry extends _IModuleEntry{
     _shouldReload():boolean;
     moduleType():FileBasedModuleType,
 }
+export type CDNConfig={
+    global?: string,
+    url?: string,
+}
 export interface IBuiltinModuleEntry extends _IModuleEntry {// includes cdn
     name: string,
     url(): string,
@@ -228,6 +233,7 @@ export interface PNode_nodef {
   require(path:string, base:string):ModuleValue;
   require(porf:string|SFile, base?:SFile|string):ModuleValue;
   clone(_globalThis:any):PNode;
+  configureCDN(name: string, conf:CDNConfig):void;
 }
 export interface PNode extends PNode_nodef{
   default: PNode;
@@ -237,6 +243,7 @@ export type ScriptingContext={
     Blob: typeof Blob,
     URL: typeof URL,
     importModule: (url:string)=>Promise<any>,
+    loadScriptTag: (url:string)=>Promise<any>,
     Function: typeof Function,
     eval: (script:string)=>any,
 }

@@ -82,6 +82,12 @@ export class Shell {
     echo(...a){
         console.log(...a);
     }
+    pickOptions(args) {
+        const r=this.collectOptions(args);
+        const o=r.pop();
+        r.unshift(o);
+        return r;
+    }
     collectOptions (args){
         const r=[],o={};
         for(let a of args){

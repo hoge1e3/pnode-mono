@@ -25,7 +25,7 @@ export function createCDNModule(e:INPMEntry, modval:ModuleValue) {
     }
     return module;
 }*/
-export async function retryloadCDN(aliases:IAliases,e:IBuiltinModuleEntry){
+export function retryloadCDN(aliases:IAliases,e:IBuiltinModuleEntry){
     return Object.assign(new Error(`Loading '${e.name}' from '${e.url()}'. Try again.`),{
         retryPromise: loadCDN(aliases, e).catch(e=>console.error(e)),
     });
@@ -46,16 +46,16 @@ async function _loadCDN(aliases:IAliases, e:IBuiltinModuleEntry):Promise<Builtin
             return g[globalName];
         }
         const url = e.url();
-        await aliases.scriptingContext.importModule(url);
+        await aliases.scriptingContext.loadScriptTag(url);
         const modval = g[globalName];
         if (!modval) {
             throw new Error(
                 `Global variable "${globalName}" not found after loading '${name}'`
             );
         }
-        const module=new BuiltinModule(e.cacheKey(),modval,url);
-        aliases.cache.add(module);
-        return module;
+        //const module=new BuiltinModule(e.cacheKey(),modval,url);
+        return aliases.addAlias(name, modval);
+        //aliases.cache.add(module);
     }
     const url = e.url();
     const modval=await aliases.scriptingContext.importModule(url);

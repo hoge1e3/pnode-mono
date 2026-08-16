@@ -1,7 +1,7 @@
 import { SFile } from "@hoge1e3/sfile";
 import { NodeModule, pathFallback } from "./NodeModule.js";
 import * as FS from "@hoge1e3/fs2";
-import { FileBasedModuleType, ICompiledCJS, ICompiledESModule, IModuleCache, IFileBasedModuleEntry, ImportOrRequire, Module, ModuleValue, ScriptingContext, IModuleEntry, CacheKey, IBuiltinModuleEntry, IAliases } from "../types/index.js";
+import { FileBasedModuleType, ICompiledCJS, ICompiledESModule, IModuleCache, IFileBasedModuleEntry, ImportOrRequire, Module, ModuleValue, ScriptingContext, IModuleEntry, CacheKey, IBuiltinModuleEntry, IAliases, CDNConfig } from "../types/index.js";
 import { asBuiltinKey, asFileKey } from "./alias.js";
 import { builtins } from "./npm.js";
 
@@ -13,7 +13,7 @@ export function isBuiltinModuleEntry(e:IModuleEntry): e is IBuiltinModuleEntry {
 }
 export function resolveModuleEntry(aliases: IAliases, wantModuleType:ImportOrRequire,path:string,base:SFile):IModuleEntry{
     if (builtins.has(path)) {
-        const ent=new BuiltinModuleEntry(path);
+        const ent=BuiltinModuleEntry.create(path);
         if (!aliases.cache.getByPath(ent.cacheKey())) throw new Error(`npm '${path}' is not implemented.`);
         return ent;
     }
@@ -26,19 +26,30 @@ export function resolveModuleEntry(aliases: IAliases, wantModuleType:ImportOrReq
         dir = NodeModule.resolve(main, base);
     } catch(e) {
         //console.error(e);
-        const ent=new BuiltinModuleEntry(path);
+        const ent=BuiltinModuleEntry.create(path);
         if (aliases.invalidModules.has(ent.cacheKey())) throw new Error(`Module '${path}' not found`);
         return ent;
     }
     return FileBasedModuleEntry.fromNodeModule(wantModuleType, dir, sub);
 }
+const cdnConfs=new Map<string, CDNConfig>();
+export function configureCDN(name: string, conf:CDNConfig) {
+    cdnConfs.set(name,conf);
+}
 export class BuiltinModuleEntry implements IBuiltinModuleEntry {
-    constructor(public name: string, 
-        public global? :string){}
+    global?: string | undefined;
+    static create(name:string):BuiltinModuleEntry{
+        return new BuiltinModuleEntry(name, cdnConfs.get(name));
+    }
+    private constructor(public name: string, 
+        public conf?: CDNConfig){
+            this.global=conf?.global;
+        }
     cacheKey(): CacheKey {
         return asBuiltinKey(this.name);
     }
     url(): string {
+        if (this.conf?.url) return this.conf.url; 
         if (this.global) {
             return `https://cdn.jsdelivr.net/npm/${this.name}`;
         }

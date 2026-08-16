@@ -6,6 +6,7 @@ import { commit, switchBranch, mergeBranch, init, sync, clone } from "../src/cmd
 import { asBranchName, asFilePath, asLocalRef } from "../src/types.js";
 import { serverUrl } from "./test-settings.js";
 import { Sync, SyncFactory } from "../src/sync.js";
+import { merge3 } from "../src/merge3.js";
 const cleanups: (() => any)[] = [];
 function write(file: string, content: string) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -100,13 +101,17 @@ export async function testBranchSwitchAndMerge() {
   assert.ok(Array.isArray(mergeStatus3), "should return conflict paths array");
   if (Array.isArray(mergeStatus3)) {
     console.log(mergeStatus3);
-    let hasFile1=false;
+    let hasFile1=false, hasFile1Merge=false;
     for (let st of mergeStatus3) {
       if (st.match(/file1\([0-9a-f]+\).txt/)) hasFile1=true;
+      //if (st.match(/file1\(merge\-[0-9a-f]+\).txt/)) hasFile1Merge=true;
     }
     if (!hasFile1) {
       assert.fail("conflict should be on file1.txt");
     }
+    /*if (!hasFile1Merge) {
+      assert.fail("conflict merge should be on file1.txt");
+    }*/
   } else {
     assert.fail("mergeStatus3 should be an array");
   }

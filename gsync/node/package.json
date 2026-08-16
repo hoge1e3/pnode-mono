@@ -5,6 +5,7 @@
         "tsc": "npx tsc",
         "build": "npx tsc",
         "test": "npm run build && node js/test/test2.js && node js/test/test-index.js && node js/test/test-branch-merge.js",
+        "buildc": "npm run build && npm run cp",
         "cp": "bash cp2idb.sh"
     },
     "bin": {
@@ -14,7 +15,8 @@
     "version": "1.0.3",
     "type": "module",
     "devDependencies": {
-        "@types/node": "^24.7.2",
+        "@types/difflib": "^0.2.7",
+        "@types/node": "^25.0.3",
         "@types/web": "^0.0.278",
         "@typescript-eslint/eslint-plugin": "^8.57.0",
         "@typescript-eslint/parser": "^8.57.0",
@@ -23,6 +25,7 @@
         "typescript-eslint": "^8.57.0"
     },
     "dependencies": {
+        "diff": "^9.0.0",
         "ignore": "^7.0.5",
         "mutable-promise": "^1.1.15"
     }

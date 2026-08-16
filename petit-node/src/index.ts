@@ -20,7 +20,7 @@ import type { AliasHash, BootOptions, Core, ESModuleCompilerHandlers,
     Module, ModuleValue, PNode, PNode_nodef, ScriptingContext, TFS } from "../types/index.js";
 import {require} from "./CommonJS.js";
 export {require, CJSCompiler} from "./CommonJS.js";
-import { BuiltinModuleEntry, CompiledCJS, CompiledESModule, FileBasedModuleEntry, isBuiltinModuleEntry, resolveModuleEntry } from "./Module.js";
+import { BuiltinModuleEntry, CompiledCJS, CompiledESModule, configureCDN, FileBasedModuleEntry, isBuiltinModuleEntry, resolveModuleEntry } from "./Module.js";
 export { CompiledESModule, FileBasedModuleEntry as ModuleEntry } from "./Module.js";
 import { jsToBlobURL } from "./scriptTag.js";
 import { JSZip,} from "@hoge1e3/fs2";
@@ -33,6 +33,7 @@ import { DeviceManager } from "petit-fs/src/vfsUtil.js";
 import { loadCDN, retryloadCDN } from "./cdn.js";
 import { bind } from "./ESModuleGenerator.js";
 import { AstCache } from "./AstCache.js";
+import MutablePromise from "mutable-promise";
 
 declare let globalThis:any;
 //declare let global:any;
@@ -104,6 +105,14 @@ function createScriptingContext(g:any):ScriptingContext {
         URL: g.URL,
         Function: g.Function,
         eval: (s)=>g.eval(s),
+        loadScriptTag: (url:string)=>{
+            const m=new MutablePromise<void>();
+            const s=g.document.createElement("script");
+            s.setAttribute("src",url);
+            s.addEventListener("load",()=>m.resolve());
+            g.document.body.appendChild(s);
+            return m;
+        },
         importModule: new g.Function("url","return import(/* webpackIgnore: true */url);"),  
     };
 }
@@ -383,6 +392,7 @@ export function createInstance(_globalThis:any, cache?:AstCache):PNode {
         clone(_globalThis:any):PNode {
             return createInstance(_globalThis, astCache);
         },
+        configureCDN,
         //default:undefined as (PNode|undefined),
     };
     return Object.assign(instance_nodef,{default:instance_nodef as PNode});

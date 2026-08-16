@@ -573,11 +573,11 @@ export class Repo {
     return asHash(await fs.readFile(MERGE_HEAD, {encoding:"utf-8"}));
   }
   async writeMergeHead(commitHash?: Hash) {
-    const MERGE_HEAD=path.join(this.gitDir, "MERGE_HEAD");
+    const MERGE_HEAD=join(this.gitDir, "MERGE_HEAD");
     if (commitHash) {
       await fs.writeFile(MERGE_HEAD, commitHash);
     } else {
-      await fs.rm(MERGE_HEAD);
+      if (await exists(MERGE_HEAD)) await fs.rm(MERGE_HEAD);
     }
   }
   realGitRepoIsSubRepo():boolean{
@@ -612,7 +612,7 @@ export class Repo {
       if (await igc.ignores(filePath)) continue;
       if (await this.inSubRepo(asFilePath(path.dirname(filePath))))continue;
       if (diff.type === 'deleted') {
-        await fs.rm(filePath, { force: true });
+        if (await exists(filePath)) await fs.rm(filePath, { force: true });
       } else if (diff.type === 'added' || diff.type === 'modified') {
         await splashScreen.show("Write "+filePath);
         if (!diff.newHash) throw new Error(`Missing 'other' hash for ${diff.path}`);
@@ -936,31 +936,30 @@ export class RecursiveGitIgnore{
     //this.stack.pop();
   }
 }
-
-
-export function stripCR(content: Buffer<ArrayBufferLike>): Uint8Array<ArrayBufferLike> {
-  function isUtf8Text(buffer:Buffer<ArrayBufferLike>):string|null {
-    try {
-      const text = new TextDecoder().decode(buffer);
-      // そもそも\r\nがないのだったら置換されないのでnull(そのまま返す)
-      if (!text.includes("\r\n")) return null;
-      // 制御文字（タブ、改行、キャリッジリターンは許可）
-      const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
-      if (controlChars.test(text)) {
-        return null;
-      }
-      // 文字化けの典型：置換文字（黒いひし形の中に?）が多く含まれていたらNG
-      const replacementCharCount = (text.match(/\uFFFD/g) || []).length;
-      const replacementRate = replacementCharCount / text.length;
-      if (replacementRate > 0.01) {
-        return null;
-      }
-      return text;
-    } catch (e) {
-      // .toString('utf8')で例外が起きることはまれだが念のため
+export function isUtf8Text(buffer:Uint8Array<ArrayBufferLike>):string|null {
+  try {
+    const text = new TextDecoder().decode(buffer);
+    // そもそも\r\nがないのだったら置換されないのでそのまま返す
+    //if (!text.includes("\r\n")) return text;
+    // 制御文字（タブ、改行、キャリッジリターンは許可）
+    const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
+    if (controlChars.test(text)) {
       return null;
     }
+    // 文字化けの典型：置換文字（黒いひし形の中に?）が多く含まれていたらNG
+    const replacementCharCount = (text.match(/\uFFFD/g) || []).length;
+    const replacementRate = replacementCharCount / text.length;
+    if (replacementRate > 0.01) {
+      return null;
+    }
+    return text;
+  } catch (e) {
+    // .toString('utf8')で例外が起きることはまれだが念のため
+    return null;
   }
+}
+
+export function stripCR(content: Uint8Array<ArrayBufferLike>): Uint8Array<ArrayBufferLike> {
   const t=isUtf8Text(content);
   if (!t) return content;
   return new TextEncoder().encode(t.replace(/\r\n/g,"\n"));

@@ -57,6 +57,7 @@ async function onload(opt) {
     });
     getValue("readyPromises").vConsole.then(()=>{
         console.log("petit-node ver.",pNode.version);
+        console.log("petit-node built at",pNode.built_at);
     });
     const FS=pNode.getFS();
     const rp=FS.get("/package.json");
