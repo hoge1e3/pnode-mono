@@ -32,6 +32,7 @@ import * as stream from "./polyfills/stream.js";
 import { DeviceManager } from "petit-fs/src/vfsUtil.js";
 import { loadCDN, retryloadCDN } from "./cdn.js";
 import { bind } from "./ESModuleGenerator.js";
+import { AstCache } from "./AstCache.js";
 
 declare let globalThis:any;
 //declare let global:any;
@@ -106,7 +107,8 @@ function createScriptingContext(g:any):ScriptingContext {
         importModule: new g.Function("url","return import(/* webpackIgnore: true */url);"),  
     };
 }
-export function createInstance(_globalThis:any):PNode {
+export function createInstance(_globalThis:any, cache?:AstCache):PNode {
+    const astCache=cache??new AstCache();
     const scriptingContext:ScriptingContext=createScriptingContext(_globalThis);
     const instance_nodef:PNode_nodef={
         aliases: new Aliases(scriptingContext),
@@ -256,6 +258,7 @@ export function createInstance(_globalThis:any):PNode {
             }
             const compiler=ESModuleCompiler.create({
                 aliases: this.aliases,
+                astCache,
             });
             const compiled=await compiler.compile(ent);
             let u=compiled.url;
@@ -273,6 +276,7 @@ export function createInstance(_globalThis:any):PNode {
         async createModuleURL(f:SFile):Promise<string>{
             const compiler=ESModuleCompiler.create({
                 aliases: this.aliases,
+                astCache,
             });
             return (await compiler.compile(FileBasedModuleEntry.fromFile(f))).url;
         },
@@ -280,6 +284,7 @@ export function createInstance(_globalThis:any):PNode {
             return ESModuleCompiler.create({
                 ...handler,
                 aliases: this.aliases,
+                astCache,
             });
         },
         errorHandler(ee:ErrorEvent){
@@ -376,7 +381,7 @@ export function createInstance(_globalThis:any):PNode {
             return require(this.aliases, porf);
         },
         clone(_globalThis:any):PNode {
-            return createInstance(_globalThis);
+            return createInstance(_globalThis, astCache);
         },
         //default:undefined as (PNode|undefined),
     };
