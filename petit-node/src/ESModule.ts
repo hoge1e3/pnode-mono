@@ -53,10 +53,10 @@ export class ESModuleCompiler {
         public oncompilestart?:(e:CompileStartEvent)=>Promise<void>,
         public oncompiled?:(e:CompiledEvent)=>Promise<void>,
         public oncachehit?:(e:CompileStartEvent)=>Promise<void>,
-        public astCache?:AstCache){
+    ){
     }
-    static create(context:ESModuleCompilerParam & {astCache?:AstCache}):ESModuleCompiler {
-        return new ESModuleCompiler(context.aliases, context.oncompilestart, context.oncompiled, context.oncachehit, context.astCache);
+    static create(context:ESModuleCompilerParam):ESModuleCompiler {
+        return new ESModuleCompiler(context.aliases, context.oncompilestart, context.oncompiled, context.oncachehit);
     }
     getCJSCompiler():CJSCompiler {
         this.cjsCompiler=this.cjsCompiler||new CJSCompiler(this.aliases);
@@ -110,7 +110,7 @@ export class ESModuleCompiler {
                 } else {
                     const circular=this.depChecker.add(entry.file.path(), e.file.path());
                     if (circular) {
-                        return await genCircularResolver(this.aliases,e.file,this.astCache);
+                        return await genCircularResolver(this.aliases,e.file);
                     }
                     compiled= await this.compileCJSFallback(e);
                 }
@@ -120,7 +120,7 @@ export class ESModuleCompiler {
             },
             deps,
         };
-        const compiled=(await convert(this.aliases.scriptingContext, entry, urlConverter, this.astCache));
+        const compiled=(await convert(this.aliases.scriptingContext, entry, urlConverter));
         if (this?.oncompiled) await this.oncompiled({module:compiled});
         this.cache.add(compiled);
         return compiled;

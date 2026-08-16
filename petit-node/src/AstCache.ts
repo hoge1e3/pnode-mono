@@ -21,4 +21,4 @@ export class AstCache {
   }
   clear():void {this.store.clear();}
 }
-export const astCache=new AstCache();
+//export const astCache=new AstCache();

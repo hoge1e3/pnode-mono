@@ -98,8 +98,9 @@ type ErrorEvent={filename:string,colno:number,lineno:number,error:Error,message:
 
 export let events=new EventHandler();
 export let on=events.on.bind(events);
-function createScriptingContext(g:any):ScriptingContext {
+function createScriptingContext(g:any, astCache:AstCache):ScriptingContext {
     return {
+        astCache,
         process: g.process,
         Blob: g.Blob,
         URL: g.URL,
@@ -116,10 +117,11 @@ function createScriptingContext(g:any):ScriptingContext {
         importModule: new g.Function("url","return import(/* webpackIgnore: true */url);"),  
     };
 }
-export function createInstance(_globalThis:any, cache?:AstCache):PNode {
-    const astCache=cache??new AstCache();
-    const scriptingContext:ScriptingContext=createScriptingContext(_globalThis);
+export function createInstance(_globalThis:any, astCache:AstCache):PNode {
+    //const astCache=cache??new AstCache();
+    const scriptingContext:ScriptingContext=createScriptingContext(_globalThis, astCache);
     const instance_nodef:PNode_nodef={
+        astCache,
         aliases: new Aliases(scriptingContext),
         events, on,
         core:null as Core|null,
@@ -267,7 +269,6 @@ export function createInstance(_globalThis:any, cache?:AstCache):PNode {
             }
             const compiler=ESModuleCompiler.create({
                 aliases: this.aliases,
-                astCache,
             });
             const compiled=await compiler.compile(ent);
             let u=compiled.url;
@@ -285,7 +286,6 @@ export function createInstance(_globalThis:any, cache?:AstCache):PNode {
         async createModuleURL(f:SFile):Promise<string>{
             const compiler=ESModuleCompiler.create({
                 aliases: this.aliases,
-                astCache,
             });
             return (await compiler.compile(FileBasedModuleEntry.fromFile(f))).url;
         },
@@ -293,7 +293,6 @@ export function createInstance(_globalThis:any, cache?:AstCache):PNode {
             return ESModuleCompiler.create({
                 ...handler,
                 aliases: this.aliases,
-                astCache,
             });
         },
         errorHandler(ee:ErrorEvent){
@@ -398,7 +397,7 @@ export function createInstance(_globalThis:any, cache?:AstCache):PNode {
     return Object.assign(instance_nodef,{default:instance_nodef as PNode});
 }// of createInstance
 
-const pNode=createInstance(globalThis);
+const pNode=createInstance(globalThis, new AstCache());
 export default pNode;
 //pNode.default=pNode;
 

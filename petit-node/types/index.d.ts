@@ -15,6 +15,7 @@ import { DeviceManager } from "petit-fs/src/vfsUtil.js";
 import { Fstab } from "petit-fs/src/types.js";
 import { EventHandler } from "@hoge1e3/events";
 import { BuiltinModule } from "../src/alias";
+import { AstCache } from "../src/AstCache";
 export type TFS={
     get(path:string):SFile;
     setDefaultPolicy(policy?:Policy):void;
@@ -64,6 +65,7 @@ export interface Module{
     dispose(): void;
 }
 export interface IAliases {
+    astCache: AstCache;
     addAliases(p:AliasHash):void;
     addAlias(path:string, value:ModuleValue, properties?:string[]):BuiltinModule;
     cache:IModuleCache;
@@ -184,6 +186,7 @@ export interface IESModuleCompiler{
     compile(entry:IFileBasedModuleEntry):Promise<ICompiledESModule>;
 }
 export interface PNode_nodef {
+  astCache: AstCache,
   aliases:IAliases,
   version: string,
   built_at: string,
@@ -246,6 +249,7 @@ export type ScriptingContext={
     loadScriptTag: (url:string)=>Promise<any>,
     Function: typeof Function,
     eval: (script:string)=>any,
+    astCache: AstCache,
 }
 /*
   const scrt=ig.document.createElement("script");

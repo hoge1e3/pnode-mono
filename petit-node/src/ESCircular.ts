@@ -4,10 +4,10 @@ import type { SFile } from "@hoge1e3/sfile";
 import type { IAliases } from "../types/index.js";
 import { jsToBlobURL } from "./scriptTag.js";
 import { asBuiltinKey } from "./alias.js";
-import { astCache } from "./AstCache.js";
+//import { astCache } from "./AstCache.js";
 import type { AstCache } from "./AstCache.js";
 
-export async function genCircularResolver(aliases:IAliases, file: SFile, cache?:AstCache):Promise<string> {
+export async function genCircularResolver(aliases:IAliases, file: SFile):Promise<string> {
     let src:string;
     try {
         src=file.text();
@@ -15,7 +15,7 @@ export async function genCircularResolver(aliases:IAliases, file: SFile, cache?:
         await (e as any).retryPromise;
         src=file.text();
     }
-    let ids=exportedIdentifiers(file, src, cache);
+    let ids=exportedIdentifiers(aliases, file, src);
     /*if (ids.includes("default")) {
         throw new Error(file+": Cannot resolve circular dependencies with default export.");
     }*/
@@ -31,8 +31,8 @@ pNode.importModule(${JSON.stringify(file.path())}).then((m)=>{
     console.log("circ", file.path(), msrc);
     return jsToBlobURL(aliases.scriptingContext, msrc);
 }
-export function exportedIdentifiers(file: SFile, jssrc: string, cache?:AstCache): string[] {
-  const ast = (cache??astCache).get(file, {
+export function exportedIdentifiers(aliases: IAliases, file: SFile, jssrc: string): string[] {
+  const ast = aliases.astCache.get(file, {
     ecmaVersion: "latest",
     sourceType: "module",
   }, jssrc);

@@ -3,7 +3,7 @@ import { simple, SimpleVisitors } from "acorn-walk";
 import { CompiledESModule} from "./Module.js";
 import { FileBasedModuleEntry } from "./Module.js";
 import { Module, ScriptingContext } from "../types/index.js";
-import { astCache } from "./AstCache.js";
+//import { astCache } from "./AstCache.js";
 import type { AstCache } from "./AstCache.js";
 
 
@@ -23,11 +23,11 @@ function spliceStr(str:string,
   return firstPart + (replacement || '') + lastPart;
 }
 const sourceMapPat=/\/\/# sourceMappingURL=([^\r\n]+)\s*$/;
-export async function convert(sctx:ScriptingContext, entry: FileBasedModuleEntry,urlConverter:URLConverter, cache?:AstCache): Promise<CompiledESModule> {
+export async function convert(sctx:ScriptingContext, entry: FileBasedModuleEntry,urlConverter:URLConverter): Promise<CompiledESModule> {
   const file=entry.file;
   try {
     const sourceCode=file.text();
-    const ast=(cache??astCache).get(file, {
+    const ast=sctx.astCache.get(file, {
       sourceType: 'module',
       loc: true,
       range: true,

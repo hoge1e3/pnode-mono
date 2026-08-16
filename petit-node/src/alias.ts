@@ -3,6 +3,7 @@ import { uniqueName, valueToESCode } from "./ESModuleGenerator.js";
 import { jsToBlobURL } from "./scriptTag.js";
 import { AliasHash, CacheKey, IAliases, IModuleCache, Module, ModuleValue, ScriptingContext } from "../types/index.js";
 import { GlobalValue, GlobalInfo } from "../types/index.js";
+import { AstCache } from "./AstCache.js";
 //declare const sym_cacheKey: unique symbol;
 export function asFileKey(path: string): CacheKey {
     return `file://${path}` as CacheKey;
@@ -18,6 +19,7 @@ export function bodyOfKey(key: CacheKey):string {
 }
 //let gbl_info:GlobalInfo;
 export class Aliases implements IAliases{
+astCache: AstCache=new AstCache();
 gbl_info:GlobalInfo|undefined;
 scriptingContext:ScriptingContext;
 invalidModules=new Set<CacheKey>();
