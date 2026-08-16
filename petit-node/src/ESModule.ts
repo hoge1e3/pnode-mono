@@ -120,7 +120,7 @@ export class ESModuleCompiler {
             },
             deps,
         };
-        const compiled=(await convert(this.aliases.scriptingContext, entry, urlConverter));
+        const compiled=(await convert(this.aliases, entry, urlConverter));
         if (this?.oncompiled) await this.oncompiled({module:compiled});
         this.cache.add(compiled);
         return compiled;

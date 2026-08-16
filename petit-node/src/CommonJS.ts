@@ -4,8 +4,7 @@ import * as FS from "@hoge1e3/fs2";
 import { Aliases, asFileKey } from "./alias.js";
 import { CompiledCJS, FileBasedModuleEntry, isBuiltinModuleEntry, isFileBasedModuleEntry, resolveModuleEntry } from "./Module.js";
 import {ex} from "./errors.js";
-//import { astCache } from "./AstCache.js";
-import type { AstCache } from "./AstCache.js";
+import * as espree from 'espree';
 import { simple, SimpleVisitors } from "acorn-walk";
 import { loadCDN, retryloadCDN } from "./cdn.js";
 type RequireFunc=((path:string)=>ModuleValue)&{
@@ -139,13 +138,13 @@ export function require(aliases:IAliases,porf:string|SFile, base?:SFile|string):
     return new CJSCompiler(aliases).compile(entry).value;
 }
 
-export async function guessDependencies(entry: FileBasedModuleEntry, cache:AstCache):Promise<Set<FileBasedModuleEntry>> {
+export async function guessDependencies(entry: FileBasedModuleEntry):Promise<Set<FileBasedModuleEntry>> {
     const file=entry.file;
     const base=file.up()!;
     // parse using esprima and extract require("string-literal")
     // and get ModuleEntry using ModuleEntry.resolve("require", path,base);
     const source=await file.async().text();
-    const ast=(cache).get(file, undefined, source);
+    const ast=espree.parse(source);
     const deps:Set<FileBasedModuleEntry>=new Set();
     const visitors: SimpleVisitors<unknown> = {
         CallExpression(node) {

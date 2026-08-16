@@ -6,6 +6,7 @@
         "build": "npx tsc",
         "test": "npm run build && node js/test/test2.js && node js/test/test-index.js && node js/test/test-branch-merge.js",
         "buildc": "npm run build && npm run cp",
+        "webpack-dev": "echo 'no-webpack-needed'",
         "cp": "bash cp2idb.sh"
     },
     "bin": {

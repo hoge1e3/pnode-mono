@@ -19,11 +19,12 @@ export function bodyOfKey(key: CacheKey):string {
 }
 //let gbl_info:GlobalInfo;
 export class Aliases implements IAliases{
-astCache: AstCache=new AstCache();
+astCache: AstCache;
 gbl_info:GlobalInfo|undefined;
 scriptingContext:ScriptingContext;
 invalidModules=new Set<CacheKey>();
-constructor(ctx:ScriptingContext){
+constructor(ctx:ScriptingContext, astCache:AstCache){
+    this.astCache=astCache;
     this.scriptingContext=ctx;
 }
 get cache():IModuleCache{

@@ -249,8 +249,14 @@ export type ScriptingContext={
     loadScriptTag: (url:string)=>Promise<any>,
     Function: typeof Function,
     eval: (script:string)=>any,
-    astCache: AstCache,
+    //astCache: AstCache,
 }
+export type Replacement={
+    range:NodeRange,
+    to:string,
+};
+export type NodeRange=[number,number];
+
 /*
   const scrt=ig.document.createElement("script");
   const id=Math.random()+"";

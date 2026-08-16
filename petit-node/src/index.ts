@@ -98,9 +98,8 @@ type ErrorEvent={filename:string,colno:number,lineno:number,error:Error,message:
 
 export let events=new EventHandler();
 export let on=events.on.bind(events);
-function createScriptingContext(g:any, astCache:AstCache):ScriptingContext {
+function createScriptingContext(g:any):ScriptingContext {
     return {
-        astCache,
         process: g.process,
         Blob: g.Blob,
         URL: g.URL,
@@ -119,10 +118,10 @@ function createScriptingContext(g:any, astCache:AstCache):ScriptingContext {
 }
 export function createInstance(_globalThis:any, astCache:AstCache):PNode {
     //const astCache=cache??new AstCache();
-    const scriptingContext:ScriptingContext=createScriptingContext(_globalThis, astCache);
+    const scriptingContext:ScriptingContext=createScriptingContext(_globalThis);
     const instance_nodef:PNode_nodef={
         astCache,
-        aliases: new Aliases(scriptingContext),
+        aliases: new Aliases(scriptingContext, astCache),
         events, on,
         core:null as Core|null,
         version,built_at,

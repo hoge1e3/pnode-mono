@@ -1,7 +1,8 @@
 {
     "scripts": {
         "build": "cd node && npx tsc",
-        "test": "cd node && npm run test"
+        "test": "cd node && npm run test",
+        "webpack-dev": "cd node && npm run webpack-dev"
     },
     "devdependencies": {
         "typescript": "^5.8.3"

@@ -2,7 +2,7 @@ import type {ExportAllDeclaration, ExportDefaultDeclaration, ExportNamedDeclarat
 import { simple, SimpleVisitors } from "acorn-walk";
 import { CompiledESModule} from "./Module.js";
 import { FileBasedModuleEntry } from "./Module.js";
-import { Module, ScriptingContext } from "../types/index.js";
+import { IAliases, Module, NodeRange, Replacement, ScriptingContext } from "../types/index.js";
 //import { astCache } from "./AstCache.js";
 import type { AstCache } from "./AstCache.js";
 
@@ -10,10 +10,6 @@ import type { AstCache } from "./AstCache.js";
 type URLConverter = {
   conv:(s: string) => Promise<string>;
   deps:Module[];
-};
-type Replacement={
-    range:number[],
-    to:string,
 };
 function spliceStr(str:string, 
     begin:number, end:number, 
@@ -23,16 +19,11 @@ function spliceStr(str:string,
   return firstPart + (replacement || '') + lastPart;
 }
 const sourceMapPat=/\/\/# sourceMappingURL=([^\r\n]+)\s*$/;
-export async function convert(sctx:ScriptingContext, entry: FileBasedModuleEntry,urlConverter:URLConverter): Promise<CompiledESModule> {
+export async function convert(aliases:IAliases, entry: FileBasedModuleEntry,urlConverter:URLConverter): Promise<CompiledESModule> {
   const file=entry.file;
   try {
     const sourceCode=file.text();
-    const ast=sctx.astCache.get(file, {
-      sourceType: 'module',
-      loc: true,
-      range: true,
-      ecmaVersion: 2024,
-    }, sourceCode);
+    const importSources=aliases.astCache.get(file, sourceCode);
     const replPromises=[] as Promise<Replacement>[];
     const convLiteral=(source: Literal)=>{
       const range=source.range||[0,0];
@@ -40,9 +31,13 @@ export async function convert(sctx:ScriptingContext, entry: FileBasedModuleEntry
       const convertedSource = urlConverter.conv(originalSource as string);
       replPromises.push(convertedSource.then((s:string)=>({
         to: `/*${JSON.stringify(originalSource)}*/${JSON.stringify(s)}`,
-        range: range.slice()
+        range: range.slice() as NodeRange
       })));
     };
+    for (let source of importSources) {
+      convLiteral(source);
+    }
+    /*
     const visitor = {
       ExportAllDeclaration(node: ExportAllDeclaration) {
         if (node.source) convLiteral(node.source);
@@ -54,7 +49,7 @@ export async function convert(sctx:ScriptingContext, entry: FileBasedModuleEntry
         if (node.source) convLiteral(node.source);
       },
     } as SimpleVisitors<unknown>;
-    simple(ast, visitor);
+    simple(ast, visitor);*/
     let conv2=sourceCode;
     await Promise.all(replPromises).then((repls)=>{
       const sorted=repls.sort((a,b)=>b.range[0]-a.range[0])
@@ -63,6 +58,7 @@ export async function convert(sctx:ScriptingContext, entry: FileBasedModuleEntry
       }
     });
     let sourceMapInjected=false;
+    const sctx=aliases.scriptingContext;
     if (sctx.process?.env?.PNODE_SOURCE_MAP) {
       conv2=conv2.replace(sourceMapPat,(_,mpath)=>{
         const srcmf=file.sibling(mpath);
