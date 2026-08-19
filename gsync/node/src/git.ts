@@ -12,7 +12,7 @@ import { FMTStorage, ObjectEntry, ObjectStore } from './objects.js';
 /*const inflate = promisify(zlib.inflate);
 const deflate = promisify(zlib.deflate);*/
 import { getSplashScreen } from "./splash.js";
-import { exists, join } from './util.js';
+import { exists, join, macroWait } from './util.js';
 import { Index } from "./index_file.js";
 const splashScreen=await getSplashScreen();
 
@@ -518,6 +518,7 @@ export class Repo {
 
     for (const entry of entries) {
       const outPath = asFilePath(path.join(dirPath, entry.name));
+      await macroWait();
       await splashScreen.show(outPath);
 
       if (entry.mode === '40000') {
@@ -611,6 +612,7 @@ export class Repo {
       }
       if (await igc.ignores(filePath)) continue;
       if (await this.inSubRepo(asFilePath(path.dirname(filePath))))continue;
+      await macroWait();
       if (diff.type === 'deleted') {
         if (await exists(filePath)) await fs.rm(filePath, { force: true });
       } else if (diff.type === 'added' || diff.type === 'modified') {

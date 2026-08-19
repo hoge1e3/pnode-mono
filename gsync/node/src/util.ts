@@ -35,3 +35,11 @@ export async function exists(f:FilePath):Promise<boolean> {
         return false;
     }
 }
+let c=0;
+export async function macroWait(freq=20) {
+    c++;
+    if (c>=freq) {
+        c=0;
+        await new Promise(r => setTimeout(r, 0));
+    }
+}

@@ -48,12 +48,37 @@ export function merge3(ancestor:string,mine:string,theirs:string):[string,boolea
     if(m.end==t.end && JSON.stringify(m.lines)==JSON.stringify(t.lines)){
       res.push(...m.lines);
     }else{
-      hasConflict=true;
-      res.push("<<<<<<< MINE");
-      res.push(...m.lines);
-      res.push("=======");
-      res.push(...t.lines);
-      res.push(">>>>>>> THEIRS");
+      // m.linesとt.linesに同じ行が含まれていても全部出してくるので
+      // さらにdiffをとって本当に違うところだけ MINE/THEIRS にする。
+      // diffLines は文字列単位なので join して diff を取り、各 change を処理する
+      const md = diffLines(m.lines.join("\n"), t.lines.join("\n"));
+      // グルーピングして連続する変更をひとつのコンフリクトブロックにする
+      let pendingMine: string[] = [];
+      let pendingTheirs: string[] = [];
+      const flush = () => {
+        if(pendingMine.length===0 && pendingTheirs.length===0) return;
+        hasConflict = true;
+        res.push("<<<<<<< MINE");
+        res.push(...pendingMine);
+        res.push("=======");
+        res.push(...pendingTheirs);
+        res.push(">>>>>>> THEIRS");
+        pendingMine = [];
+        pendingTheirs = [];
+      };
+      for(const c of md as any){
+        if(!c.added && !c.removed){
+          // 共通部分はまず未決を出してからそのまま出力
+          flush();
+          const common = chunkLines(c.value);
+          res.push(...common);
+        }else if(c.removed){
+          pendingMine.push(...chunkLines(c.value));
+        }else if(c.added){
+          pendingTheirs.push(...chunkLines(c.value));
+        }
+      }
+      flush();
     }
     pos=Math.max(m.end,t.end); mi++; ti++; continue;
   }

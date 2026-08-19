@@ -215,6 +215,33 @@ test
   assert.equal(one[1], false);
   assert.equal(one[0], cver2);
 
+
+
+//
+  // 同じ行を両側で別の内容に変更＋一部共通行あり → 共通行を除きコンフリクト
+  //
+  const cver1_common=`Hello
+World
+is
+test
+`;
+  const cver2_common=`Hello
+Universe
+is
+test
+`;
+  const conflict_common=merge3(cbase, cver1_common, cver2_common);
+  assert.equal(conflict_common[1], true, "conflict expected");
+  assert.equal(conflict_common[0], `Hello
+\<<<<<<< MINE
+World
+=======
+Universe
+\>>>>>>> THEIRS
+is
+test
+`);  
+
 }
 export async function main(){
   if (!fs.existsSync("../cotest/.gsync")) {
