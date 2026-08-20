@@ -1,7 +1,7 @@
 import * as path from "path";
 import { isUtf8Text, Repo, sameExceptCRLF, stripCR } from "./git.js";
 import { DownloadableObjectStore, GIT_DIR_NAME, Sync, SyncFactory } from "./sync.js";
-import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, asPathInRepo, Author, BranchName, FilePath, Hash, PathInRepo, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, IgnoreState, CommitEntry } from "./types.js";
+import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, asPathInRepo, Author, BranchName, FilePath, Hash, PathInRepo, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, IgnoreState, CommitEntry, isHash } from "./types.js";
 import {promises as fs} from "fs";
 import { Index } from "./index_file.js";
 import { FileBasedObjectStore, factory as offlineObjectStoreFactory} from "./objects.js";
@@ -26,7 +26,7 @@ export async function main(cwd=process.cwd(), argv=process.argv):Promise<any> {
         case "clone_overwrite":
         case "clone_nocheckout":
             if (args.length<2) {
-                console.log(argv.join(" ")+" <serverUrl> <repoId>");
+                console.log(argv.join(" ")+" <serverUrl> <repoId> [<branch-or-commitHash>]");
                 return;
             }
             const b=args[2]||"main";
@@ -288,14 +288,21 @@ async function _clone(into:FilePath, config:APIConfig,  branch: BranchName, opti
     const newSync=await newSyncf.load();
     const repo=newSync.repo;//new Repo(newGitDir);
     //await newSync.downloadObjects();
-    const headCommitHash=await newSync.getRemoteHead(branch);
-    if (!headCommitHash) throw new Error("No remote head on "+branch);
-    await repo.updateHead(asLocalRef(branch), headCommitHash );
+    let headCommitHash=await newSync.getRemoteHead(branch);
+    let detachedHead=false;
+    if (!headCommitHash) {
+        if (!isHash(branch)) {
+            throw new Error("No remote head on "+branch);
+        }
+        headCommitHash=asHash(branch);
+        detachedHead=true;
+    }
+    if (!detachedHead) await repo.updateHead(asLocalRef(branch), headCommitHash );
     if (!skipco) {
         const headCommit=await repo.readCommit(headCommitHash);
         await repo.checkoutTreeToDir(headCommit.tree, into);
     }
-    await repo.setCurrentBranchName(branch);
+    if (!detachedHead) await repo.setCurrentBranchName(branch);
     return newSync;
 
 }
