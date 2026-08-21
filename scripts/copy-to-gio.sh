@@ -13,8 +13,10 @@ cp "$ROOT/webcartridge/dist/webcartridge.js"  "$AP/webcartridge.js"
 
 # idb/run を setup.zip に圧縮（.gsync と .git を除外）
 ZIPFILE="$AP/setup.zip"
+ZIPFILE_TMP="$AP/setup_tmp.zip"
 rm -f "$ZIPFILE"
 cd "$ROOT/idb/run"
-zip -r "$ZIPFILE" . -x ".gsync/*" -x ".git/*"
+zip -r "$ZIPFILE_TMP" . -x ".gsync/*" -x ".git/*"
+mv "$ZIPFILE_TMP" "$ZIPFILE"
 
 echo "gio: done"

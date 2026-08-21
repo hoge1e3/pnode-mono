@@ -5,8 +5,7 @@
  * @param {string|undefined} default_ 
  * @returns {string|undefined}
  */
-export function getQueryString(key, default_) {
-    if (arguments.length === 1) default_ = "";
+export function getQueryString(key, default_="") {
     key = key.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
     var regex = new RegExp("[\\?&]" + key + "=([^&#]*)");
     var qs = regex.exec(location.href);
@@ -81,6 +80,19 @@ export function qsExists(...a) {
     const r=root.querySelector(q);
     if (!r) throw new Error(`${q} does not exist`);
     return r;
+}
+/**
+ * 
+ * @param {string} p 
+ * @returns boolean
+ */
+export async function _confirm(p) {
+  if(getQueryString("autostart")) {
+    console.log("Confirm auto true",p);
+    await timeout(1000);
+    return true; 
+  }
+  return confirm(p);
 }
 
 /** @type (dbName:string)=>Promise<string> 

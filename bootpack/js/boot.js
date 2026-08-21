@@ -11,7 +11,7 @@
  */
 import { getValue } from "./global.js";
 import { getInstance } from "./pnode.js";
-import { qsExists, timeout,can, getEnv } from "./util.js";
+import { qsExists, timeout,can, getEnv, _confirm } from "./util.js";
 import { getMountPromise,readFstab, } from "./fstab.js";
 
 let rmbtn=()=>{};
@@ -46,7 +46,7 @@ export async function unzipBlob(blob, dest) {
     let zip=FS.get("/tmp/boot.zip");
     await zip.setBlob(blob);
     dest.mkdir();
-    await FS.zip.unzip(zip,dest,{v:true});
+    await FS.zip.unzip(zip,dest,{v:false});
 }
 /**@type (run:SFile)=>SFile */
 export function fixrun(run){
@@ -69,7 +69,7 @@ export async function networkBoot(url){
     let boot=pNode.file(getEnv("INSTALL_DIR"));
     let rescue=false;
     if (boot.exists()) {
-        if (!confirm(`Found installation in '${process.env.INSTALL_DIR}'. Boot with Rescue mode in '${process.env.RESCUE_DIR}'.`)) return;
+        if (!await _confirm(`Found installation in '${process.env.INSTALL_DIR}'. Boot with Rescue mode in '${process.env.RESCUE_DIR}'.`)) return;
         boot=pNode.file(getEnv("RESCUE_DIR"));
         rescue=true;
     }

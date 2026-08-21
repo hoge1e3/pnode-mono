@@ -1,7 +1,7 @@
 //@ts-check
 import "../css/style.css";
 import "../css/file-icon.css";
-import { onReady, timeout, qsExists } from "./util.js";
+import { onReady, timeout, qsExists, getQueryString } from "./util.js";
 import { init } from "./pnode.js";
 import { getMountPromise, mount } from "./fstab.js";
 import {showMenus, scanPrefetchModule}from "./menu.js";
@@ -75,10 +75,36 @@ async function onload(opt) {
         process.env.WEBCARTRIDGE_MAIN=opt.main+"";
         console.log("WEBCARTRIDGE_MAIN",process.env.WEBCARTRIDGE_MAIN);
     }
-    if (opt?.autostart) {
+    const autostart=opt?.autostart||getQueryString("autostart");
+    if (autostart) {
+        let autostartCandidates;
+        try {
+            autostartCandidates=JSON.parse(autostart);
+        } catch(e) {
+            autostartCandidates=[autostart];
+        }
+        const b=findAuto(menus,autostartCandidates);
+        b?.click();
+    }
+}
+/**
+ * 
+ * @param {{label:string, dom: HTMLElement}[]} menus
+ * @param {string[]} autostartCandidates 
+ * @returns HTMLElement
+ */
+function findAuto(menus, autostartCandidates){
+    for (let autostart of autostartCandidates) {
         for (let menu of menus) {
-            if (menu.label===opt.autostart) {
-                menu.dom.click();
+            if (menu.label===autostart) {
+                return menu.dom;
+            }
+        }
+        for (let b of document.querySelectorAll(".menubtn")) {
+            const l=b.querySelector(".label");
+            //console.log(l?.textContent);
+            if (l?.textContent===autostart){
+                return b;
             }
         }
     }

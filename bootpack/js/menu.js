@@ -15,7 +15,7 @@ import {getMountPromise} from "./fstab.js";
 import { getValue } from "./global.js";
 import { btn, showModal, splash, rmbtn as rmbtnWithoutQuick, uploadFile } from "./ui.js";
 import { fullBackup, factoryReset, fullRestore } from "./backup.js";
-import { blob2arrayBuffer } from "./util.js";
+import { _confirm, blob2arrayBuffer } from "./util.js";
 import { SFile } from "@hoge1e3/sfile";
 
 export function rmbtn(){
@@ -48,14 +48,14 @@ export function showMenus(rootPkgJson){
     btn(["💣","Factory Reset"],async ()=>{
         if(prompt("type 'really' to clear all data")!=="really")return;
         await factoryReset();
-        if (confirm("Factory reset complete. reload?")) location.reload();
+        if (await _confirm("Factory reset complete. reload?")) location.reload();
     });
     btn(["📦","Full backup"],()=>fullBackup());
     btn(["📤","Full restore"],async ()=>{
         const blob=await uploadFile();
         const arrayBuffer=await blob2arrayBuffer(blob);
         await fullRestore(arrayBuffer);
-        if (confirm("Full restore complete. reload?")) location.reload();
+        if (await _confirm("Full restore complete. reload?")) location.reload();
     });
     btn(["💻","Console"],()=>showConsole());
     return res;

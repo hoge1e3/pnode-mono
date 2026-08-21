@@ -1,5 +1,6 @@
 import { assign, pollute } from "./global.js";
 import MutablePromise from "mutable-promise";
+import { getQueryString } from "./util.js";
 export async function installPWA(swurl: string): Promise<void> {
     try {
         const registration = await navigator.serviceWorker.register(swurl, { type: 'module' });
@@ -16,7 +17,7 @@ export async function installPWA(swurl: string): Promise<void> {
             pollute({ __CACHE_NAME__: data.CACHE_NAME });
         }, { once: true });
         sw.postMessage({ type: "CACHE_NAME" });
-        if (!navigator.serviceWorker.controller) {
+        if (!navigator.serviceWorker.controller && !getQueryString("autostart")) {
             if(confirm("Service worker installed. reload?")) location.reload();
         }
     } catch(err) {
