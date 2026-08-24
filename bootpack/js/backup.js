@@ -6,6 +6,7 @@ import { showModal, splash } from "./boot.js";
 import { mount, readFstab, unmountExceptRoot, wakeLazies } from "./fstab.js";
 import { getInstance } from "./pnode.js";
 import { directorify, timeout } from "./util.js";
+import {Idb} from "./idb.js";
 export async function factoryReset(){
     const sp=showModal(".splash");
     await splash("Factory reset...",sp);
@@ -25,6 +26,8 @@ export async function factoryReset(){
     }
     localStorage["/"]="{}";
     await dev.commitPromise();
+    //const idb=new Idb();
+
     showModal();
 }
 export async function fullBackup(){
