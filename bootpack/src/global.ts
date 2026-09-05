@@ -1,57 +1,41 @@
-//@ts-check
 import { isPlainObject } from "./util.js";
 
-/** @type any */
-const g=globalThis;
-const NAME="pNodeBootLoader";
-/** @type any */
-const pNodeBootLoader=g[NAME]||{};
-g[NAME]=pNodeBootLoader;
-export function getGlobal() {
+const g: any = globalThis;
+const NAME = "pNodeBootLoader";
+const pNodeBootLoader: any = g[NAME] || {};
+g[NAME] = pNodeBootLoader;
+export function getGlobal(): any {
     return pNodeBootLoader;
 }
-/**
- * @param {string} k 
- * @returns any
- */
-export function getValue(k) {
+export function getValue(k: string): any {
     return pNodeBootLoader[k] || g[k];
 }
-/**
- * @param {object} o 
- */
-export function pollute(o) {
+export function pollute(o: object): void {
     assign(o, pNodeBootLoader);
     assign(o, globalThis);
 }
-/**
- * @param {any} o 
- */
-export function assign(o, dst=pNodeBootLoader) {
+export function assign(o: any, dst: any = pNodeBootLoader): void {
     for (let k in o) {
         if (isPlainObject(o[k]) && isPlainObject(dst[k])) {
             assign(o[k], dst[k]);
         } else {
-            dst[k]=o[k];
+            dst[k] = o[k];
         }
     }
 }
-/**
- * @param {any} o 
- */
-export function assignDefault(o, dst=pNodeBootLoader) {
+export function assignDefault(o: any, dst: any = pNodeBootLoader): void {
     for (let k in o) {
         if (isPlainObject(o[k]) && isPlainObject(dst[k])) {
             assignDefault(o[k], dst[k]);
         } else {
-            dst[k]=dst[k]||o[k];
+            dst[k] = dst[k] || o[k];
         }
     }
 }
 assignDefault({
     version:"1.0.0",
     getValue,
-    assign, 
+    assign,
     assignDefault,
     pollute,
     env:{},

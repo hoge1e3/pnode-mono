@@ -1,4 +1,3 @@
-//@ts-check
 import "../css/style.css";
 import "../css/file-icon.css";
 import { onReady, timeout, qsExists, getQueryString } from "./util.js";
@@ -6,17 +5,14 @@ import { init } from "./pnode.js";
 import { getMountPromise, mount } from "./fstab.js";
 import {showMenus, scanPrefetchModule}from "./menu.js";
 import { prefetchScript } from "./prefetcher.js";
-import {getValue, assignDefault, assign, pollute} from "./global.js";
+import {getValue, assignDefault, pollute} from "./global.js";
 import { rmbtn, showModal, splash } from "./ui.js";
 import { startWorker } from "./worker.js";
-if(typeof self!==undefined){
+import type { MenuButton } from "./types.js";
+if(typeof self!=="undefined"){
     startWorker();
 }
-/**
- * 
- * @param {any} opt 
- */
-export function onInitCartridge(opt){
+export function onInitCartridge(opt: any):void {
     if (typeof window!=="undefined") {
         onReady(()=>onload(opt));
         pollute({prefetchScript});
@@ -30,18 +26,14 @@ assignDefault({
     }
 })
 
-/**
- * 
- * @param {any} opt 
- */
-async function onload(opt) {
+async function onload(opt: any):Promise<void> {
     //await import("./console.js");
     try {
       qsExists("#file-icon .title").innerHTML="Welcome to petit-node, npm loader in browser";
     } catch(e){
     }
     const sp=showModal(".splash");
-    await splash("Loading petit-node",sp);    
+    await splash("Loading petit-node",sp);
     //await installPWA();
     if(!localStorage["/"]){
         localStorage["/"]="{}";
@@ -87,20 +79,14 @@ async function onload(opt) {
         b?.click();
     }
 }
-/**
- * 
- * @param {{label:string, dom: HTMLElement}[]} menus
- * @param {string[]} autostartCandidates 
- * @returns HTMLElement
- */
-function findAuto(menus, autostartCandidates){
+function findAuto(menus: MenuButton[], autostartCandidates: string[]): HTMLElement|undefined {
     for (let autostart of autostartCandidates) {
         for (let menu of menus) {
             if (menu.label===autostart) {
                 return menu.dom;
             }
         }
-        for (let b of document.querySelectorAll(".menubtn")) {
+        for (let b of document.querySelectorAll<HTMLElement>(".menubtn")) {
             const l=b.querySelector(".label");
             //console.log(l?.textContent);
             if (l?.textContent===autostart){
@@ -121,7 +107,7 @@ function prefetch(){
     const cdn="https://cdn.jsdelivr.net/npm/";//"https://unpkg.com/"
     /**@param {string|Promise<any>} u */
     const to_p=(u)=>
-    typeof u==="string" ? 
+    typeof u==="string" ?
     prefetchScript(cdn+u) : u;
     /**@param {any[]} a*/
     const para=(...a)=>Promise.all(a.map(to_p));

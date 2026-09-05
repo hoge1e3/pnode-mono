@@ -1,36 +1,41 @@
-//@ts-check
-/**
- * @typedef  { import("./types.js").MultiSyncIDBStorage } MultiSyncIDBStorage
- */
 import { showModal, splash } from "./boot.js";
 import { mount, readFstab, unmountExceptRoot, wakeLazies } from "./fstab.js";
 import { getInstance } from "./pnode.js";
 import { directorify, timeout } from "./util.js";
-import {Idb} from "./idb.js";
-export async function factoryReset(){
+import type { MultiSyncIDBStorage } from "./types.js";
+import { Idb } from "./idb.js";
+
+export async function factoryReset():Promise<void>{
     const sp=showModal(".splash");
     await splash("Factory reset...",sp);
     const pNode=getInstance();
     const dev=pNode.getDeviceManager();
-    await wakeLazies();  
-    for (let fs of dev.df()) {
+    await wakeLazies();
+    await dev.commitPromise();
+    /*for (let fs of dev.df()) {
         if(fs.fstype()==="idb") {
-            /**@type {any} */
-            const __fs=fs;
+            const __fs=fs as typeof fs & {storage?:MultiSyncIDBStorage};
             const storage=__fs.storage;
             if (storage) await removeAllFromIDB(storage, fs.mountPoint);
-        }   
+        }
+    }*/
+   for (let tab of readFstab()) {
+        if (tab.fsType==="idb") {
+            // fsType:"idb", options:{dbName: "petit-fs", storeName: "kvStore"}},
+            await removeAllFromIDB(tab.options.dbName);
+        }
     }
+    
     for(let k in localStorage){
         delete localStorage[k];
     }
     localStorage["/"]="{}";
-    await dev.commitPromise();
+    //await dev.commitPromise();
     //const idb=new Idb();
 
     showModal();
 }
-export async function fullBackup(){
+export async function fullBackup():Promise<void>{
     const pNode=getInstance();
     const FS=pNode.getFS();
     const sp=showModal(".splash");
@@ -41,43 +46,28 @@ export async function fullBackup(){
     showModal();
 }
 
-/**
- * @param storage {MultiSyncIDBStorage}
- * @param mountPoint {string}
- */
-export async function removeAllFromIDB(storage, mountPoint) {
-    mountPoint=directorify(mountPoint);
-    for (let k of storage.keys()) {
-        //console.log(k); 
-        if (k==mountPoint) continue;
-        storage.removeItem(k);
+export async function removeAllFromIDB(dbName: string/*, mountPoint: string*/): Promise<void> {
+    const idb=await Idb.open(dbName, ["kvStore"]);
+    const kvs=idb.table("kvStore");
+    for await (let k of kvs.keys()) {
+        await kvs.delete(k);
     }
-    storage.setItem(mountPoint, "{}"); 
-    await storage.waitForCommit();
 }
-/**
- * 
- * @param {ArrayBuffer} arrayBuf 
- */
-export async function fullRestore(arrayBuf){
-    
+export async function fullRestore(arrayBuf: ArrayBuffer): Promise<void> {
+
     const sp=showModal(".splash");
     const pNode=getInstance();
-    /** @type {any} */
     const _JSZip=await pNode.importModule("pnode:jszip");
-    /** @type {typeof import("jszip")} */
-    const JSZip=_JSZip;
+    const JSZip=_JSZip as typeof import("jszip");
     const jszip = new JSZip();
     await jszip.loadAsync(arrayBuf);
     const dev=pNode.getDeviceManager();
     const fs=pNode.getNodeLikeFs();
-    /** @type {any} */
     const _path=await pNode.importModule("path");
-    /** @type {typeof import("node:path")} */
-    const path=_path;
+    const path=_path as typeof import("node:path");
     const fstabName="fstab.json";
     const fstabPath="/"+fstabName;
-    
+
     const zipEntry = jszip.files[fstabName];
     if (zipEntry) {
         const fstab_str = await zipEntry.async("string");
@@ -93,7 +83,7 @@ export async function fullRestore(arrayBuf){
         }
     }
     splash("Activating all fs", sp);
-    await wakeLazies();           
+    await wakeLazies();
     splash("Unzipping files ", sp);
     for (let key of Object.keys(jszip.files)) {
         const zipEntry = jszip.files[key];

@@ -1,25 +1,20 @@
-//@ts-check
 import "../css/style.css";
 import "../css/file-icon.css";
 import { onReady, timeout, qsExists, getQueryString } from "./util.js";
 import { init } from "./pnode.js";
 import { getMountPromise, mount } from "./fstab.js";
-import {showMenus, scanPrefetchModule}from "./menu.js";
+import { showMenus, scanPrefetchModule } from "./menu.js";
 import { prefetchScript } from "./prefetcher.js";
-import {getValue, assignDefault, assign, pollute} from "./global.js";
+import { getValue, assignDefault, pollute } from "./global.js";
 import { rmbtn, showModal, splash } from "./ui.js";
 import { startWorker } from "./worker.js";
-if(typeof self!==undefined){
+if (typeof self !== "undefined") {
     startWorker();
 }
-/**
- * 
- * @param {any} opt 
- */
-export function onInitCartridge(opt){
-    if (typeof window!=="undefined") {
-        onReady(()=>onload(opt));
-        pollute({prefetchScript});
+export function onInitCartridge(opt) {
+    if (typeof window !== "undefined") {
+        onReady(() => onload(opt));
+        pollute({ prefetchScript });
     }
 }
 assignDefault({
@@ -28,82 +23,73 @@ assignDefault({
         //zip: mutablePromise(),
         fs: getMountPromise(),
     }
-})
-
-/**
- * 
- * @param {any} opt 
- */
+});
 async function onload(opt) {
     //await import("./console.js");
     try {
-      qsExists("#file-icon .title").innerHTML="Welcome to petit-node, npm loader in browser";
-    } catch(e){
+        qsExists("#file-icon .title").innerHTML = "Welcome to petit-node, npm loader in browser";
     }
-    const sp=showModal(".splash");
-    await splash("Loading petit-node",sp);    
+    catch (e) {
+    }
+    const sp = showModal(".splash");
+    await splash("Loading petit-node", sp);
     //await installPWA();
-    if(!localStorage["/"]){
-        localStorage["/"]="{}";
+    if (!localStorage["/"]) {
+        localStorage["/"] = "{}";
     }
     /*prefetch().then(()=>{
         console.log("Scripts prefetched.");
     });*/
-    const pNode=await init({
-        BOOT_DISK_URL:`setup.zip`,
-        SETUP_URL:`setup.zip`,
-        INSTALL_DIR:"/idb/run",
-        RESCUE_DIR:"/tmp/run",
+    const pNode = await init({
+        BOOT_DISK_URL: `setup.zip`,
+        SETUP_URL: `setup.zip`,
+        INSTALL_DIR: "/idb/run",
+        RESCUE_DIR: "/tmp/run",
     });
-    getValue("readyPromises").vConsole.then(()=>{
-        console.log("petit-node ver.",pNode.version);
-        console.log("petit-node built at",pNode.built_at);
+    getValue("readyPromises").vConsole.then(() => {
+        console.log("petit-node ver.", pNode.version);
+        console.log("petit-node built at", pNode.built_at);
     });
-    const FS=pNode.getFS();
-    const rp=FS.get("/package.json");
+    const FS = pNode.getFS();
+    const rp = FS.get("/package.json");
     showModal();
     rmbtn();
-    const menus=showMenus(rp);
+    const menus = showMenus(rp);
     console.log("Prefetching scripts");
     await timeout(1);
-    const ti=performance.now();
+    const ti = performance.now();
     console.log("Mounting RAM/IDB");
     await mount();
-    console.log("Mounted. ",performance.now()-ti,"msec taken.");
+    console.log("Mounted. ", performance.now() - ti, "msec taken.");
     scanPrefetchModule(rp);
     if (opt?.main) {
-        process.env.WEBCARTRIDGE_MAIN=opt.main+"";
-        console.log("WEBCARTRIDGE_MAIN",process.env.WEBCARTRIDGE_MAIN);
+        process.env.WEBCARTRIDGE_MAIN = opt.main + "";
+        console.log("WEBCARTRIDGE_MAIN", process.env.WEBCARTRIDGE_MAIN);
     }
-    const autostart=opt?.autostart||getQueryString("autostart");
+    const autostart = opt?.autostart || getQueryString("autostart");
     if (autostart) {
         let autostartCandidates;
         try {
-            autostartCandidates=JSON.parse(autostart);
-        } catch(e) {
-            autostartCandidates=[autostart];
+            autostartCandidates = JSON.parse(autostart);
         }
-        const b=findAuto(menus,autostartCandidates);
+        catch (e) {
+            autostartCandidates = [autostart];
+        }
+        const b = findAuto(menus, autostartCandidates);
         b?.click();
     }
 }
-/**
- * 
- * @param {{label:string, dom: HTMLElement}[]} menus
- * @param {string[]} autostartCandidates 
- * @returns HTMLElement
- */
-function findAuto(menus, autostartCandidates){
+function findAuto(menus, autostartCandidates) {
     for (let autostart of autostartCandidates) {
         for (let menu of menus) {
-            if (menu.label===autostart) {
+            if (menu.label === autostart) {
                 return menu.dom;
             }
         }
         for (let b of document.querySelectorAll(".menubtn")) {
-            const l=b.querySelector(".label");
+            const l = b.querySelector(".label");
             //console.log(l?.textContent);
-            if (l?.textContent===autostart){
+            if (l?.textContent === autostart) {
                 return b;
             }
         }
@@ -121,7 +107,7 @@ function prefetch(){
     const cdn="https://cdn.jsdelivr.net/npm/";//"https://unpkg.com/"
     /**@param {string|Promise<any>} u */
     const to_p=(u)=>
-    typeof u==="string" ? 
+    typeof u==="string" ?
     prefetchScript(cdn+u) : u;
     /**@param {any[]} a*/
     const para=(...a)=>Promise.all(a.map(to_p));
@@ -144,3 +130,4 @@ function prefetch(){
     "ace-builds@1.39.0/src-noconflict/ext-language_tools.js"
     ));
 }`;
+//# sourceMappingURL=main.js.map

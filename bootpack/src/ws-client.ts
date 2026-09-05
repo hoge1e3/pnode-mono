@@ -1,24 +1,10 @@
-//@ts-check
-/** 
- * @typedef { import("./types").SFile } SFile
- * @typedef { import("./types").Menus } Menus
- * @typedef { import("./types").Menu } Menu
- * @typedef { import("./types").ShowModal } ShowModal
- * @typedef { import("./types").RootPackageJSON } RootPackageJSON
- * @typedef { import("./types.js").WSFileInfo } WSFileInfo
- */
 import { mutablePromise } from "./util.js";
-/**
- * 
- * @param {SFile} home 
- * @returns 
- */
-export function init(home) {
-    /**
-     * @param {string} path 
-     * @returns {SFile}
-     */
-    function resolve(path) {
+import type MutablePromise from "mutable-promise";
+import type { SFile } from "@hoge1e3/sfile";
+import type { WSFileInfo } from "./types.js";
+
+export function init(home: SFile): MutablePromise<void> {
+    function resolve(path: string): SFile {
         path=path.replace(/\\/g,"/");
         //console.log("resolving",path,path.startsWith("/"));
         if (path.startsWith("/")) {
@@ -30,8 +16,7 @@ export function init(home) {
     const mp=mutablePromise();
     const ws = new WebSocket("ws://localhost:8080");
     //const files = {}; // path -> {mtime, content}
-    /**@type (...a:any[])=>void */
-    const log=(...a)=>console.log("websocket",...a);
+    const log=(...a:any[])=>console.log("websocket",...a);
     ws.addEventListener("open", () => {
         log("connected");
     });
@@ -72,7 +57,7 @@ export function init(home) {
     });
     startWatch();
     mp.resolve();
-    function startWatch(){
+    function startWatch():void{
         home.watch((type, file)=>{
             const path=file.path();//relPath(home);
             //console.log(type,path, home.path(), file.path());
@@ -103,22 +88,20 @@ export function init(home) {
     }
 
     /**
-     * 
-     * @param {string} path 
-     * @returns 
+     *
+     * @param {string} path
      */
-    function readFile(path) {
+    function readFile(path: string): {mtime:number,content:string}|null {
         const f=resolve(path);
         return f.exists() ? {mtime: f.lastUpdate(), content:f.dataURL()} : null ;// files[path] || null;
     }
     /**
-     * 
-     * @param {string} path 
-     * @param {WSFileInfo} info 
-     * @param {boolean} nosend 
-     * @returns 
+     *
+     * @param {string} path
+     * @param {WSFileInfo} info
+     * @param {boolean} nosend
      */
-    function writeFile(path, info, nosend) {
+    function writeFile(path: string, info: WSFileInfo, nosend: boolean):void {
         const f=resolve(path);
         //console.log("path-info",path, info);
         f.dataURL(info.content);
@@ -131,12 +114,11 @@ export function init(home) {
         }));
     }
     /**
-     * 
-     * @param {string} path 
-     * @param {boolean} nosend 
-     * @returns {WSFileInfo|undefined}
+     *
+     * @param {string} path
+     * @param {boolean} nosend
      */
-    function deleteFile(path, nosend) {
+    function deleteFile(path: string, nosend: boolean):void {
         const f=resolve(path);
         if (!f.exists()) return;
         f.rm();//    delete files[path];

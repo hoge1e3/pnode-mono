@@ -274,7 +274,7 @@ export class AsyncIDBStorage<T> {
             const request = store.put(value, key);
             request.onsuccess = () => resolve();
             request.onerror = (event) => reject((event.target as IDBRequest).error);
-        }).finally(()=>{this.uncommitedCounter.dec();});
+        }).finally(()=>this.uncommitedCounter.dec());
     }
     async removeItem(key: string): Promise<void> {
         const db=await this.initDB();
@@ -285,7 +285,7 @@ export class AsyncIDBStorage<T> {
             const request = store.delete(key);
             request.onsuccess = () => resolve();
             request.onerror = (event) => reject((event.target as IDBRequest).error);
-        }).finally(()=>{this.uncommitedCounter.dec();});
+        }).finally(()=>this.uncommitedCounter.dec());
     }
     async waitForCommit(){
         return await this.uncommitedCounter.wait();

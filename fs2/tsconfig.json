@@ -15,7 +15,7 @@
       "strict": true,
       "allowSyntheticDefaultImports": true,
       //"outDir":"./js"
-      
+      "esModuleInterop": true,
       "incremental": true,
       "tsBuildInfoFile": "./.tsbuildinfo",
     },

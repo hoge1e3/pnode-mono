@@ -1,11 +1,3 @@
-//@ts-check
-/** 
- * @typedef { import("./types").Menus } Menus
- * @typedef { import("./types").Menu } Menu
- * @typedef { import("./types").ShowModal } ShowModal
- * @typedef { import("./types").RootPackageJSON } RootPackageJSON
- */
-
 import { /*prefetchAuto ,*/ prefetchModule, doQuick } from "./prefetcher.js";
 import { getInstance } from "./pnode.js";
 
@@ -16,22 +8,21 @@ import { getValue } from "./global.js";
 import { btn, showModal, splash, rmbtn as rmbtnWithoutQuick, uploadFile } from "./ui.js";
 import { fullBackup, factoryReset, fullRestore } from "./backup.js";
 import { _confirm, blob2arrayBuffer } from "./util.js";
-import { SFile } from "@hoge1e3/sfile";
+import type { SFile } from "@hoge1e3/sfile";
+import type { Menu, MenuButton, Menus, RootPackageJSON } from "./types.js";
 
-export function rmbtn(){
+export function rmbtn():void {
     rmbtnWithoutQuick();
     doQuick();
 }
 wireUI({rmbtn,showModal,splash});
-/** @type (rp:SFile)=>any[] */
-export function showMenus(rootPkgJson){
+export function showMenus(rootPkgJson: SFile): MenuButton[] {
     //const pNode=getInstance();
     //const FS=pNode.getFS();
-    /**@type any[] */
-    let res=[];
-    
+    let res: MenuButton[]=[];
+
     if(rootPkgJson.exists()){
-        // ensure factory reset, evan if failed by file system inconsistency. 
+        // ensure factory reset, evan if failed by file system inconsistency.
         // (for example, /package.json entry is in / but not in localStorage)
         try{
             res=showMainmenus(rootPkgJson);
@@ -61,29 +52,24 @@ export function showMenus(rootPkgJson){
     return res;
     //console.log("rp",rp.exists());
 }
-function showConsole(){
+function showConsole():void {
     const vConsole=getValue("vConsole");
-    if (vConsole) vConsole.show();           
+    if (vConsole) vConsole.show();
 }
-/**@param {Menus} menus */
-export function parseMenus(menus){
+export function parseMenus(menus: Menus): Menus {
     for(let k in menus){
-        const main=menus[k];
+        const main:any=menus[k];
         if(typeof main==="string"){
             menus[k]={main};
         }
     }
     return menus;
 }
-/**@param {SFile} rp */
-export function scanPrefetchModule(rp) {
+export function scanPrefetchModule(rp: SFile):void {
     const pNode=getInstance();
     const FS=pNode.getFS();
     if (!rp.exists()) return;
-    /**@type {any} */
-    const _o=rp.obj();
-    /**@type {RootPackageJSON} */
-    const o=_o;
+    const o=rp.obj() as RootPackageJSON;
     if(!o.menus) return;
     if (o.prefetch) {
         try {
@@ -95,22 +81,17 @@ export function scanPrefetchModule(rp) {
         }
     }
 }
-/** @param {SFile} rp */
-export function showMainmenus(rp) {
-    /**@type {any} */
-    const _o=rp.obj();
-    /**@type {RootPackageJSON} */
-    const o=_o;
+export function showMainmenus(rp: SFile): MenuButton[] {
+    const o=rp.obj() as RootPackageJSON;
     //console.log("rp.obj",o);
     if(!o.menus)return[];
     const menus=parseMenus(o.menus);
-    let hasAuto;
-    const res=[];
+    let hasAuto: boolean=false;
+    const res: MenuButton[]=[];
     for(let k in menus){
       const v=menus[k];
         if (v.auto) hasAuto=true;
-        /**@type string|string[] */
-        let c=k;
+        let c: string|string[]=k;
         if(v.icontext){
           c=[v.icontext,k];
         }
@@ -119,17 +100,13 @@ export function showMainmenus(rp) {
     //if (hasAuto) stopBtn();
     return res;
 }
-/**
- * @param {string} k 
- * @param {Menu} v 
-*/
-export async function runMenu(k,v){
+export async function runMenu(k: string, v: Menu): Promise<void> {
     try {
         const sp=showModal(".splash");
         await splash("Launching "+k,sp);
         const pNode=getInstance();
         const FS=pNode.getFS();
-        const {main,auto, submenus}=v;
+        const {main}=v;
         rmbtn();
         await splash("Waiting for disk ready",sp);
         await getMountPromise();
@@ -137,14 +114,13 @@ export async function runMenu(k,v){
         const mainF=fixrun(FS.get(main));
         process.env.boot=mainF.path();
         await splash("start "+process.env.boot,sp);
-        /**@type{any} */
-        const mod=await pNode.importModule(mainF);
+        const mod:any=await pNode.importModule(mainF);
         await splash("impored "+mainF,sp);
         if(v.call){
           const [n,...a]=v.call;
           mod[n](...a);
         }
-        //}  
+        //}
     } finally {
         showModal(false);
     }

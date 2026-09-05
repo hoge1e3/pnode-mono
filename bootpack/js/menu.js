@@ -1,151 +1,133 @@
-//@ts-check
-/** 
- * @typedef { import("./types").Menus } Menus
- * @typedef { import("./types").Menu } Menu
- * @typedef { import("./types").ShowModal } ShowModal
- * @typedef { import("./types").RootPackageJSON } RootPackageJSON
- */
-
 import { /*prefetchAuto ,*/ prefetchModule, doQuick } from "./prefetcher.js";
 import { getInstance } from "./pnode.js";
-
-import {networkBoot,insertBootDisk,
-fixrun,wireUI} from "./boot.js";
-import {getMountPromise} from "./fstab.js";
+import { networkBoot, insertBootDisk, fixrun, wireUI } from "./boot.js";
+import { getMountPromise } from "./fstab.js";
 import { getValue } from "./global.js";
 import { btn, showModal, splash, rmbtn as rmbtnWithoutQuick, uploadFile } from "./ui.js";
 import { fullBackup, factoryReset, fullRestore } from "./backup.js";
 import { _confirm, blob2arrayBuffer } from "./util.js";
-import { SFile } from "@hoge1e3/sfile";
-
-export function rmbtn(){
+export function rmbtn() {
     rmbtnWithoutQuick();
     doQuick();
 }
-wireUI({rmbtn,showModal,splash});
-/** @type (rp:SFile)=>any[] */
-export function showMenus(rootPkgJson){
+wireUI({ rmbtn, showModal, splash });
+export function showMenus(rootPkgJson) {
     //const pNode=getInstance();
     //const FS=pNode.getFS();
-    /**@type any[] */
-    let res=[];
-    
-    if(rootPkgJson.exists()){
-        // ensure factory reset, evan if failed by file system inconsistency. 
+    let res = [];
+    if (rootPkgJson.exists()) {
+        // ensure factory reset, evan if failed by file system inconsistency.
         // (for example, /package.json entry is in / but not in localStorage)
-        try{
-            res=showMainmenus(rootPkgJson);
-        }catch(e) {
+        try {
+            res = showMainmenus(rootPkgJson);
+        }
+        catch (e) {
             console.error(e);
             alert(e);
         }
     }
-    const su=process.env.SETUP_URL;
+    const su = process.env.SETUP_URL;
     if (su) {
-        btn(["💿","Install/Rescue"],()=>networkBoot(su));
+        btn(["💿", "Install/Rescue"], () => networkBoot(su));
     }
-    btn(["💾","Insert Boot Disk"],()=>insertBootDisk());
-    btn(["💣","Factory Reset"],async ()=>{
-        if(prompt("type 'really' to clear all data")!=="really")return;
+    btn(["💾", "Insert Boot Disk"], () => insertBootDisk());
+    btn(["💣", "Factory Reset"], async () => {
+        if (prompt("type 'really' to clear all data") !== "really")
+            return;
         await factoryReset();
-        if (await _confirm("Factory reset complete. reload?")) location.reload();
+        if (await _confirm("Factory reset complete. reload?"))
+            location.reload();
     });
-    btn(["📦","Full backup"],()=>fullBackup());
-    btn(["📤","Full restore"],async ()=>{
-        const blob=await uploadFile();
-        const arrayBuffer=await blob2arrayBuffer(blob);
+    btn(["📦", "Full backup"], () => fullBackup());
+    btn(["📤", "Full restore"], async () => {
+        const blob = await uploadFile();
+        const arrayBuffer = await blob2arrayBuffer(blob);
         await fullRestore(arrayBuffer);
-        if (await _confirm("Full restore complete. reload?")) location.reload();
+        if (await _confirm("Full restore complete. reload?"))
+            location.reload();
     });
-    btn(["💻","Console"],()=>showConsole());
+    btn(["💻", "Console"], () => showConsole());
     return res;
     //console.log("rp",rp.exists());
 }
-function showConsole(){
-    const vConsole=getValue("vConsole");
-    if (vConsole) vConsole.show();           
+function showConsole() {
+    const vConsole = getValue("vConsole");
+    if (vConsole)
+        vConsole.show();
 }
-/**@param {Menus} menus */
-export function parseMenus(menus){
-    for(let k in menus){
-        const main=menus[k];
-        if(typeof main==="string"){
-            menus[k]={main};
+export function parseMenus(menus) {
+    for (let k in menus) {
+        const main = menus[k];
+        if (typeof main === "string") {
+            menus[k] = { main };
         }
     }
     return menus;
 }
-/**@param {SFile} rp */
 export function scanPrefetchModule(rp) {
-    const pNode=getInstance();
-    const FS=pNode.getFS();
-    if (!rp.exists()) return;
-    /**@type {any} */
-    const _o=rp.obj();
-    /**@type {RootPackageJSON} */
-    const o=_o;
-    if(!o.menus) return;
+    const pNode = getInstance();
+    const FS = pNode.getFS();
+    if (!rp.exists())
+        return;
+    const o = rp.obj();
+    if (!o.menus)
+        return;
     if (o.prefetch) {
         try {
             for (let m of o.prefetch) {
                 prefetchModule(FS.get(m));
             }
-        } catch(e){
+        }
+        catch (e) {
             console.error(e);
         }
     }
 }
-/** @param {SFile} rp */
 export function showMainmenus(rp) {
-    /**@type {any} */
-    const _o=rp.obj();
-    /**@type {RootPackageJSON} */
-    const o=_o;
+    const o = rp.obj();
     //console.log("rp.obj",o);
-    if(!o.menus)return[];
-    const menus=parseMenus(o.menus);
-    let hasAuto;
-    const res=[];
-    for(let k in menus){
-      const v=menus[k];
-        if (v.auto) hasAuto=true;
-        /**@type string|string[] */
-        let c=k;
-        if(v.icontext){
-          c=[v.icontext,k];
+    if (!o.menus)
+        return [];
+    const menus = parseMenus(o.menus);
+    let hasAuto = false;
+    const res = [];
+    for (let k in menus) {
+        const v = menus[k];
+        if (v.auto)
+            hasAuto = true;
+        let c = k;
+        if (v.icontext) {
+            c = [v.icontext, k];
         }
-        res.push(btn(c, ()=>runMenu(k,v)));//,v.auto);
+        res.push(btn(c, () => runMenu(k, v))); //,v.auto);
     }
     //if (hasAuto) stopBtn();
     return res;
 }
-/**
- * @param {string} k 
- * @param {Menu} v 
-*/
-export async function runMenu(k,v){
+export async function runMenu(k, v) {
     try {
-        const sp=showModal(".splash");
-        await splash("Launching "+k,sp);
-        const pNode=getInstance();
-        const FS=pNode.getFS();
-        const {main,auto, submenus}=v;
+        const sp = showModal(".splash");
+        await splash("Launching " + k, sp);
+        const pNode = getInstance();
+        const FS = pNode.getFS();
+        const { main } = v;
         rmbtn();
-        await splash("Waiting for disk ready",sp);
+        await splash("Waiting for disk ready", sp);
         await getMountPromise();
-        await splash("disk ready",sp);
-        const mainF=fixrun(FS.get(main));
-        process.env.boot=mainF.path();
-        await splash("start "+process.env.boot,sp);
-        /**@type{any} */
-        const mod=await pNode.importModule(mainF);
-        await splash("impored "+mainF,sp);
-        if(v.call){
-          const [n,...a]=v.call;
-          mod[n](...a);
+        await splash("disk ready", sp);
+        const mainF = fixrun(FS.get(main));
+        process.env.boot = mainF.path();
+        await splash("start " + process.env.boot, sp);
+        const mod = await pNode.importModule(mainF);
+        await splash("impored " + mainF, sp);
+        if (v.call) {
+            const [n, ...a] = v.call;
+            mod[n](...a);
         }
-        //}  
-    } finally {
+        //}
+    }
+    finally {
         showModal(false);
     }
 }
+//# sourceMappingURL=menu.js.map

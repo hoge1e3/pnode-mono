@@ -2,7 +2,8 @@
 /*global indexedDB*/
 
 export class Idb {
-  constructor(db) {
+  db: IDBDatabase;
+  constructor(db: IDBDatabase) {
     this.db = db;
 
     // 他の接続がバージョンアップするときは、
@@ -23,14 +24,14 @@ export class Idb {
    *   const k2k = db.table("k2k");
    *   const foo = db.table("foo");
    */
-  static open(dbName, stores = []) {
-    return new Promise((resolve, reject) => {
+  static open(dbName: string, stores: string[] = []): Promise<Idb> {
+    return new Promise<Idb>((resolve, reject) => {
       const requestedStores = [...new Set(stores)];
 
       const req = indexedDB.open(dbName);
 
       req.onupgradeneeded = (ev) => {
-        const db = ev.target.result;
+        const db = (ev.target as IDBOpenDBRequest).result;
 
         for (const name of requestedStores) {
           if (!db.objectStoreNames.contains(name)) {
@@ -59,7 +60,7 @@ export class Idb {
         const upgradeReq = indexedDB.open(dbName, newVersion);
 
         upgradeReq.onupgradeneeded = (ev) => {
-          const upgradeDb = ev.target.result;
+          const upgradeDb = (ev.target as IDBOpenDBRequest).result;
 
           for (const name of missing) {
             if (!upgradeDb.objectStoreNames.contains(name)) {
@@ -98,7 +99,7 @@ export class Idb {
   /**
    * object storeを取得する。
    */
-  table(name) {
+  table(name: string): Table {
     if (!this.db.objectStoreNames.contains(name)) {
       throw new Error(`Object store does not exist: ${name}`);
     }
@@ -109,20 +110,22 @@ export class Idb {
   /**
    * DBを閉じる。
    */
-  close() {
+  close(): void {
     this.db.close();
   }
 }
 
 
 export class Table {
-  constructor(db, name) {
+  db: IDBDatabase;
+  name: string;
+  constructor(db: IDBDatabase, name: string) {
     this.db = db;
     this.name = name;
   }
 
-  putAll(iter) {
-    return new Promise((resolve, reject) => {
+  putAll(iter: Iterable<[IDBValidKey, any]>): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
       const tx = this.db.transaction(this.name, "readwrite");
       const store = tx.objectStore(this.name);
 
@@ -141,8 +144,8 @@ export class Table {
     });
   }
 
-  put(key, value) {
-    return new Promise((resolve, reject) => {
+  put(key: IDBValidKey, value: any): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
       const tx = this.db.transaction(this.name, "readwrite");
       const store = tx.objectStore(this.name);
       const req = store.put(value, key);
@@ -152,8 +155,8 @@ export class Table {
     });
   }
 
-  get(key) {
-    return new Promise((resolve, reject) => {
+  get(key: IDBValidKey): Promise<any> {
+    return new Promise<any>((resolve, reject) => {
       const tx = this.db.transaction(this.name, "readonly");
       const store = tx.objectStore(this.name);
       const req = store.get(key);
@@ -163,12 +166,12 @@ export class Table {
     });
   }
 
-  async *keys() {
+  async *keys(): AsyncGenerator<IDBValidKey, void, unknown> {
     const tx = this.db.transaction(this.name, "readonly");
     const store = tx.objectStore(this.name);
     const req = store.getAllKeys();
 
-    const keys = await new Promise((resolve, reject) => {
+    const keys = await new Promise<IDBValidKey[]>((resolve, reject) => {
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
@@ -176,5 +179,15 @@ export class Table {
     for (const key of keys) {
       yield key;
     }
+  }
+  async delete(key: IDBValidKey): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const tx = this.db.transaction(this.name, "readwrite");
+      const store = tx.objectStore(this.name);
+      const req = store.delete(key);
+
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
   }
 }

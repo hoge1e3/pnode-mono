@@ -1,0 +1,10 @@
+import type { SFile } from "@hoge1e3/sfile";
+import type { Splash, ShowModal, WireUIDC } from "./types.js";
+export declare let showModal: ShowModal;
+export declare let splash: Splash;
+export declare function wireUI(dc: WireUIDC): void;
+export declare function unzipURL(url: string, dest: SFile): Promise<void>;
+export declare function unzipBlob(blob: Blob, dest: SFile): Promise<void>;
+export declare function fixrun(run: SFile): SFile;
+export declare function networkBoot(url: string): Promise<void>;
+export declare function insertBootDisk(): void;

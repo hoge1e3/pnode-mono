@@ -1,6 +1,5 @@
-//@ts-check
 import {assign, pollute} from "./global.js";
-export async function installPWA(swurl="./sw.js"){
+export async function installPWA(swurl="./sw.js"): Promise<void> {
     try {
         const registration=await navigator.serviceWorker.register(swurl);
         console.log('ServiceWorker registration successful with scope: ', registration.scope);

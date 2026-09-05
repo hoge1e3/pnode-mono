@@ -1,17 +1,7 @@
-//@ts-check
 import { mutablePromise, qsExists, timeout } from "./util.js";
-/** 
- * @typedef { import("./types").SFile } SFile
- * @typedef { import("./types").Menus } Menus
- * @typedef { import("./types").Menu } Menu
- * @typedef { import("./types").ShowModal } ShowModal
- * @typedef { import("./types").RootPackageJSON } RootPackageJSON
- */
-
-/**@type boolean */
-let modalInited;
-/**@type ShowModal */
-export function showModal(s) {
+import type {MenuButton} from "./types.js";
+let modalInited: boolean;
+export function showModal(s?: string|boolean): HTMLElement {
   const modal=qsExists(".modal-container");
   modal.setAttribute("style", s?"":"display: none;");
   if (!modalInited) {
@@ -33,13 +23,8 @@ export function showModal(s) {
   }
   return modal;
 }
-/**
- * 
- * @param {string|string[]} c 
- * @param {Function} a 
- */
-export function btn(c,a/*,auto*/){
-    let icont;
+export function btn(c: string|string[], a: ()=>any): MenuButton {
+    let icont: string;
     if (typeof c==="string") {
         icont=c[0];
     } else {
@@ -61,50 +46,40 @@ export function btn(c,a/*,auto*/){
 
     const menus=qsExists(".menus");
     menus.append(b);
-    const act=async()=>{
+    const act=async ():Promise<void>=>{
         try {
             //abortAuto();
             await a();
-        }catch(/**@type any*/e){
+        }catch(e: any){
             console.error(e.message+"\n"+e.stack);
         }
     };
-    b.addEventListener("click", act);	    
+    b.addEventListener("click", act);
     return {
       action:act, label: c, dom:b,
     };
 }
-export function rmbtn(){
+export function rmbtn():void {
   for(let b of document.querySelectorAll('.menubtn')){
       b.parentNode?.removeChild(b);
   }
 }
-/**
- * @param {string} mesg 
- * @param {HTMLElement} sp 
-*/
-export async function splash(mesg,sp){
+export async function splash(mesg: string, sp: HTMLElement): Promise<void> {
   sp.textContent=mesg;
-  await timeout(1);    
+  await timeout(1);
 }
-/**
- * 
- * @param {{onShow?:(evt:{dom:HTMLElement})=>void}} opt 
- * @returns {Promise<Blob>}
- */
-export async function uploadFile(opt={}){
+export async function uploadFile(opt: {onShow?:(evt:{dom:HTMLElement})=>void} = {}): Promise<Blob> {
   const cas=showModal(".upload");
   if (opt.onShow) {
     opt.onShow({dom:cas});
   }
-  const promise=mutablePromise();
+  const promise=mutablePromise<Blob>();
   cas.addEventListener("close",()=>promise.reject(new Error("closed")),{once:true});
   const file=qsExists(cas, ".file");
-  file.addEventListener("input",async function () {
-    //@ts-ignore
-    const file=this.files && this.files[0];
+  file.addEventListener("input",async function (this: HTMLInputElement) {
+    const f=this.files && this.files[0];
     showModal();
-    promise.resolve(file);
+    promise.resolve(f as Blob);
   });
   return promise;
 }
