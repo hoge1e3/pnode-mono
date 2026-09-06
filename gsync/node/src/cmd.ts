@@ -502,15 +502,24 @@ async sync(conflictResolutionPolicy: ConflictResolutionPolicy = "saveHashedRemot
         }
     }
 }
-
+static makePostfix<T extends string>(filepath: T, postfix: string): T {
+    // ex: filepath = "/a/b/test.txt"  postfix = "(1)"
+    //       returns "/a/b/test(1).txt"
+    //     filepath may either absolute or relative path
+    const ext = path.extname(filepath);
+    const basename = path.basename(filepath, ext);
+    const dirname = path.dirname(filepath);
+    const newBasename = `${basename}${postfix}${ext}`;
+    return path.join(dirname, newBasename) as T;
+}
 private async conflictedFile(repo: Repo, filePath: FilePath, postfix: string): Promise<FilePath> {
     const work = repo.workingDir();
     if (!await exists(join(work, GSYNC_CONFLICT_DIR))) {
-        return makePostfix(filePath, postfix);
+        return Cli.makePostfix(filePath, postfix);
     }
     const rel = path.relative(work, filePath);
     if (rel.startsWith("..")) throw new Error(`${filePath} is out of ${work}`);
-    const dst = makePostfix(path.join(work, GSYNC_CONFLICT_DIR, rel) as FilePath, postfix);
+    const dst = Cli.makePostfix(path.join(work, GSYNC_CONFLICT_DIR, rel) as FilePath, postfix);
     return dst;
 }
 
@@ -869,17 +878,6 @@ export function mergeBranch(dir: string, sourceBranchName: string) {
 }
 export function diffCmd(dir: string, args: string[]) {
     return new Cli(dir).diffCmd(args);
-}
-
-function makePostfix<T extends string>(filepath: T, postfix: string): T {
-    // ex: filepath = "/a/b/test.txt"  postfix = "(1)"
-    //       returns "/a/b/test(1).txt"
-    //     filepath may either absolute or relative path
-    const ext = path.extname(filepath);
-    const basename = path.basename(filepath, ext);
-    const dirname = path.dirname(filepath);
-    const newBasename = `${basename}${postfix}${ext}`;
-    return path.join(dirname, newBasename) as T;
 }
 
 function showLineDiff(
