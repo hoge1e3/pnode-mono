@@ -1,7 +1,7 @@
 import * as path from "path";
 import { isUtf8Text, Repo, sameExceptCRLF, stripCR } from "./git.js";
 import { GIT_DIR_NAME, Sync, SyncFactory } from "./sync.js";
-import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, Author, BranchName, FilePath, Hash, PathInRepo, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, CommitEntry } from "./types.js";
+import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, Author, BranchName, FilePath, Hash, PathInRepo, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, CommitEntry, isHash } from "./types.js";
 import { promises as fs } from "fs";
 import { factory as offlineObjectStoreFactory } from "./objects.js";
 import { getSplashScreen } from "./splash.js";
@@ -25,7 +25,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             case "clone_overwrite":
             case "clone_nocheckout":
                 if (args.length < 2) {
-                    console.log(argv.join(" ") + " <serverUrl> <repoId>");
+                    console.log(argv.join(" ") + " <serverUrl> <repoId> [<branch-or-commitHash>]");
                     return;
                 }
                 const b = args[2] || "main";
@@ -141,21 +141,6 @@ constructor(cwd: string = process.cwd()) {
     this.cwd = cwd;
 }
 
-async findGitDir(): Promise<FilePath> {
-    let c = this.cwd;
-    while (true) {
-        const res = asFilePath(path.join(c, GIT_DIR_NAME));
-        if (await exists(res)) return res;
-        const nc = path.dirname(c);
-        if (!nc || nc === c) throw new Error(`No git repo found from ${this.cwd}`);
-        c = nc;
-    }
-}
-
-async offlineRepo(gitDir: FilePath): Promise<Repo> {
-    const objectStore = await offlineObjectStoreFactory(gitDir);
-    return new Repo(gitDir, objectStore);
-}
 
 async resetHard(targetBranch: string | undefined) {
     const gitDir = await this.findGitDir();
@@ -245,6 +230,10 @@ async manage(gitDirName: string = GIT_DIR_NAME) {
             url + "manage.php";
     console.log(`Open ${manage}?repo=${repoId}`);
 }
+async offlineRepo(gitDir: FilePath): Promise<Repo> {
+    const objectStore = await offlineObjectStoreFactory(gitDir);
+    return new Repo(gitDir, objectStore);
+}
 
 async msync(branchName: string): Promise<SyncStatus> {
     const r1 = await this.syncWithRetry("saveHashedRemote");
@@ -304,16 +293,35 @@ private async _clone(into: FilePath, config: APIConfig, branch: BranchName, opti
     const newSyncf = new SyncFactory(newGitDir);
     await newSyncf.writeConfig(config);
     const newSync = await newSyncf.load();
-    const repo = newSync.repo;
-    const headCommitHash = await newSync.getRemoteHead(branch);
-    if (!headCommitHash) throw new Error("No remote head on " + branch);
-    await repo.updateHead(asLocalRef(branch), headCommitHash);
+
+    const repo=newSync.repo;//new Repo(newGitDir);
+    //await newSync.downloadObjects();
+    let headCommitHash=await newSync.getRemoteHead(branch);
+    let detachedHead=false;
+    if (!headCommitHash) {
+        if (!isHash(branch)) {
+            throw new Error("No remote head on "+branch);
+        }
+        headCommitHash=asHash(branch);
+        detachedHead=true;
+    }
+    if (!detachedHead) await repo.updateHead(asLocalRef(branch), headCommitHash );    
     if (!skipco) {
         const headCommit = await repo.readCommit(headCommitHash);
         await repo.checkoutTreeToDir(headCommit.tree, into);
     }
-    await repo.setCurrentBranchName(branch);
+    if (!detachedHead) await repo.setCurrentBranchName(branch);
     return newSync;
+}
+async findGitDir(): Promise<FilePath> {
+    let c = this.cwd;
+    while (true) {
+        const res = asFilePath(path.join(c, GIT_DIR_NAME));
+        if (await exists(res)) return res;
+        const nc = path.dirname(c);
+        if (!nc || nc === c) throw new Error(`No git repo found from ${this.cwd}`);
+        c = nc;
+    }
 }
 
 async commit(message?: string): Promise<Hash> {
