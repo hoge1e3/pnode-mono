@@ -173,7 +173,9 @@ async resetHard(targetBranch: string | undefined) {
     return;
 }
 
-async scan(showRepo: boolean, showUrl: boolean, showKey: boolean, shell: boolean) {
+async scan(
+showRepo: boolean, showUrl: boolean, 
+showKey: boolean, shell: boolean) {
     const name = GIT_DIR_NAME;
     // scan recursively *cwd* and list folder named *name*
     const scanDir = async (dir: FilePath): Promise<FilePath[]> => {
@@ -392,14 +394,19 @@ async syncWithRetry(conflictResolutionPolicy: ConflictResolutionPolicy): Promise
     const sync = new Sync(gitDir);
     await sync.downloadObjects(ignoreState);
 }*/
-async sync(conflictResolutionPolicy: ConflictResolutionPolicy = "saveHashedRemote", message = new Date() + ""): Promise<SyncStatus> {
+async sync(
+    conflictResolutionPolicy: ConflictResolutionPolicy="saveHashedRemote", 
+    message=new Date()+""): Promise<SyncStatus> {
+    //splashScreen.show("Commit");
+    //const localCommitHash=await commit(dir);
     const gitDir = await this.findGitDir();
     const syncf = new SyncFactory(gitDir);
     const sync = await syncf.load();
-    const repo = sync.repo;
+    const repo = sync.repo;//new Repo(gitDir);
     const branch = await repo.getCurrentBranchName();
     //splashScreen.show("Check remote");
     await splashScreen.show("Commit");
+    //const remoteCommitHash= await sync.getRemoteHead(branch);
     const [localCommitHash, remoteCommitHash] = await Promise.all([
         this.commit(message),
         sync.getRemoteHead(branch),
@@ -412,6 +419,7 @@ async sync(conflictResolutionPolicy: ConflictResolutionPolicy = "saveHashedRemot
         await sync.addRemoteHead(branch, localCommitHash);
         return "newly_pushed";
     }
+    //await sync.downloadObjects();
     const baseCommitHash = await repo.findMergeBase(localCommitHash, remoteCommitHash);
     if (remoteCommitHash === baseCommitHash) {
         // update remote
@@ -510,16 +518,6 @@ async sync(conflictResolutionPolicy: ConflictResolutionPolicy = "saveHashedRemot
         }
     }
 }
-static makePostfix<T extends string>(filepath: T, postfix: string): T {
-    // ex: filepath = "/a/b/test.txt"  postfix = "(1)"
-    //       returns "/a/b/test(1).txt"
-    //     filepath may either absolute or relative path
-    const ext = path.extname(filepath);
-    const basename = path.basename(filepath, ext);
-    const dirname = path.dirname(filepath);
-    const newBasename = `${basename}${postfix}${ext}`;
-    return path.join(dirname, newBasename) as T;
-}
 private async conflictedFile(repo: Repo, filePath: FilePath, postfix: string): Promise<FilePath> {
     const work = repo.workingDir();
     if (!await exists(join(work, GSYNC_CONFLICT_DIR))) {
@@ -529,6 +527,16 @@ private async conflictedFile(repo: Repo, filePath: FilePath, postfix: string): P
     if (rel.startsWith("..")) throw new Error(`${filePath} is out of ${work}`);
     const dst = Cli.makePostfix(path.join(work, GSYNC_CONFLICT_DIR, rel) as FilePath, postfix);
     return dst;
+}
+static makePostfix<T extends string>(filepath: T, postfix: string): T {
+    // ex: filepath = "/a/b/test.txt"  postfix = "(1)"
+    //       returns "/a/b/test(1).txt"
+    //     filepath may either absolute or relative path
+    const ext = path.extname(filepath);
+    const basename = path.basename(filepath, ext);
+    const dirname = path.dirname(filepath);
+    const newBasename = `${basename}${postfix}${ext}`;
+    return path.join(dirname, newBasename) as T;
 }
 
 async log(check_ref = false) {
