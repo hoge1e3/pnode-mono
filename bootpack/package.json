@@ -3,7 +3,7 @@
   "version": "2.0.1",
   "main": "./js/main.js",
   "scripts": {
-    "tsc": "echo no tsc needed",
+    "tsc": "npx tsc",
     "webpack-dev": "npx webpack && npm run inject-time",
     "build-dev": "npm run tsc && npm run webpack-dev",
     "gio": "cd .. && npm run gio",
