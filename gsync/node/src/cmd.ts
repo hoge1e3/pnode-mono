@@ -1,7 +1,7 @@
 import * as path from "path";
 import { isUtf8Text, Repo, sameExceptCRLF, stripCR } from "./git.js";
 import { GIT_DIR_NAME, Sync, SyncFactory } from "./sync.js";
-import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, Author, BranchName, FilePath, Hash, PathInRepo, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, CommitEntry, isHash } from "./types.js";
+import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, Author, BranchName, Conflict, FilePath, Hash, PathInRepo, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, CommitEntry, isHash } from "./types.js";
 import { promises as fs } from "fs";
 import { factory as offlineObjectStoreFactory } from "./objects.js";
 import { getSplashScreen } from "./splash.js";
@@ -460,50 +460,10 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         } else {
             let confpaths: Conflicted = [];
             for (let c of conflicts) {
-                const remoteObj = await repo.readObject(c.b);
-                const localPath = repo.toFilePath(c.path);
-                const localContent = await fs.readFile(localPath);
-                const baseContent = c.base ? (await repo.readObject(c.base)).content : Buffer.from([]);
-                if (!sameExceptCRLF(localContent, remoteObj.content)) {
-                    const winner =
-                        conflictResolutionPolicy === "ignoreLocal" ? "remote" :
-                            conflictResolutionPolicy === "ignoreRemote" ? "local" :
-                                conflictResolutionPolicy === "newer" ?
-                                    (remoteCommitTime.getTime() >
-                                        (await fs.stat(localPath)).mtime.getTime() ? "remote" : "local") :
-                                    null;
-                    if (winner === null) {
-                        //TODO: same as mergeBranch
-                        const baseContent_str = isUtf8Text(stripCR(baseContent));
-                        const localContent_str = isUtf8Text(stripCR(localContent));
-                        const remoteContent_str = isUtf8Text(stripCR(remoteObj.content));
-                        const [merged, hasConflict] =
-                            baseContent_str && localContent_str && remoteContent_str ?
-                                merge3(baseContent_str, localContent_str, remoteContent_str) :
-                                ["", true];
-                        if (hasConflict) {
-                            const postfix = `(${remoteCommitHash.substring(0, 8)})`;
-                            const postfixedPath = await this.conflictedFile(repo, localPath, postfix);
-                            confpaths.push(repo.toPathInRepo(postfixedPath));
-                            if (confpaths.length == 1) console.log("CONFLICT");
-                            console.log(`Conflict saved at ${postfixedPath}`);
-                            await fs.mkdir(path.dirname(postfixedPath), { recursive: true });
-                            await fs.writeFile(postfixedPath, remoteObj.content);
-                            if (merged.length > 0) {
-                                const postfix = `(merge-${remoteCommitHash.substring(0, 8)})`;
-                                const postfixedPath = await this.conflictedFile(repo, localPath, postfix);
-                                console.log(`Conflict-merged saved at ${postfixedPath}`);
-                                await fs.writeFile(postfixedPath, merged);
-                            }
-                        } else {
-                            await fs.writeFile(localPath, merged);
-                        }
-                    } else if (winner === "remote") {
-                        console.log(`Overwrite ${localPath}`);
-                        await fs.writeFile(localPath, remoteObj.content);
-                    } else {
-                        console.log(`Skip ${localPath}`);
-                    }
+                const postfixedPath = await this.processConflict(repo, c, remoteCommitHash, conflictResolutionPolicy, remoteCommitTime);
+                if (postfixedPath) {
+                    confpaths.push(repo.toPathInRepo(postfixedPath));
+                    if (confpaths.length == 1) console.log("CONFLICT");
                 }
             }
             if (confpaths.length > 0) {
@@ -528,6 +488,58 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         const dst = Cli.makePostfix(path.join(work, GSYNC_CONFLICT_DIR, rel) as FilePath, postfix);
         return dst;
     }
+    private async processConflict(
+        repo: Repo,
+        c: Conflict,
+        commitHash: Hash,
+        conflictResolutionPolicy?: ConflictResolutionPolicy,
+        remoteCommitTime?: Date
+    ): Promise<FilePath | null> {
+        const sourceObj = await repo.readObject(c.b);
+        const localPath = repo.toFilePath(c.path);
+        const localContent = await fs.readFile(localPath);
+        const baseContent = c.base ? (await repo.readObject(c.base)).content : Buffer.from([]);
+        if (sameExceptCRLF(localContent, sourceObj.content)) return null;
+        const winner =
+            conflictResolutionPolicy === "ignoreLocal" ? "remote" :
+                conflictResolutionPolicy === "ignoreRemote" ? "local" :
+                    conflictResolutionPolicy === "newer" ?
+                        (remoteCommitTime!.getTime() >
+                            (await fs.stat(localPath)).mtime.getTime() ? "remote" : "local") :
+                        null;
+        if (winner === "remote") {
+            console.log(`Overwrite ${localPath}`);
+            await fs.writeFile(localPath, sourceObj.content);
+            return null;
+        } else if (winner === "local") {
+            console.log(`Skip ${localPath}`);
+            return null;
+        }
+        const baseContent_str = isUtf8Text(stripCR(baseContent));
+        const localContent_str = isUtf8Text(stripCR(localContent));
+        const sourceContent_str = isUtf8Text(stripCR(sourceObj.content));
+        const [merged, hasConflict] =
+            baseContent_str && localContent_str && sourceContent_str ?
+                merge3(baseContent_str, localContent_str, sourceContent_str) :
+                ["", true];
+        if (!hasConflict) {
+            await fs.writeFile(localPath, merged);
+            return null;
+        }
+        const postfix = `(${commitHash.substring(0, 8)})`;
+        const postfixedPath = await this.conflictedFile(repo, localPath, postfix);
+        console.log(`Conflict saved at ${postfixedPath}`);
+        await fs.mkdir(path.dirname(postfixedPath), { recursive: true });
+        await fs.writeFile(postfixedPath, sourceObj.content);
+        if (merged.length > 0) {
+            const postfix = `(merge-${commitHash.substring(0, 8)})`;
+            const postfixedPath = await this.conflictedFile(repo, localPath, postfix);
+            console.log(`Conflict-merged saved at ${postfixedPath}`);
+            await fs.writeFile(postfixedPath, merged);
+        }
+        return postfixedPath;
+    }
+
     static makePostfix<T extends string>(filepath: T, postfix: string): T {
         // ex: filepath = "/a/b/test.txt"  postfix = "(1)"
         //       returns "/a/b/test(1).txt"
@@ -744,36 +756,10 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         } else {
             let confpaths: Conflicted = [];
             for (let c of conflicts) {
-                const sourceObj = await repo.readObject(c.b);
-                const localPath = repo.toFilePath(c.path);
-                const localContent = await fs.readFile(localPath);
-                const baseContent = c.base ? (await repo.readObject(c.base)).content : Buffer.from([]);
-                if (!sameExceptCRLF(localContent, sourceObj.content)) {
-                    //TODO: same as sync
-                    const baseContent_str = isUtf8Text(stripCR(baseContent));
-                    const localContent_str = isUtf8Text(stripCR(localContent));
-                    const sourceContent_str = isUtf8Text(stripCR(sourceObj.content));
-                    const [merged, hasConflict] =
-                        baseContent_str && localContent_str && sourceContent_str ?
-                            merge3(baseContent_str, localContent_str, sourceContent_str) :
-                            ["", true];
-                    if (hasConflict) {
-                        const postfix = `(${sourceCommitHash.substring(0, 8)})`;
-                        const postfixedPath = await this.conflictedFile(repo, localPath, postfix);
-                        confpaths.push(repo.toPathInRepo(postfixedPath));
-                        if (confpaths.length === 1) console.log("CONFLICT");
-                        console.log(`Conflict saved at ${postfixedPath}`);
-                        await fs.mkdir(path.dirname(postfixedPath), { recursive: true });
-                        await fs.writeFile(postfixedPath, sourceObj.content);
-                        if (merged.length > 0) {
-                            const postfix = `(merge-${sourceCommitHash.substring(0, 8)})`;
-                            const postfixedPath = await this.conflictedFile(repo, localPath, postfix);
-                            console.log(`Conflict-merged saved at ${postfixedPath}`);
-                            await fs.writeFile(postfixedPath, merged);
-                        }
-                    } else {
-                        await fs.writeFile(localPath, merged);
-                    }
+                const postfixedPath = await this.processConflict(repo, c, sourceCommitHash);
+                if (postfixedPath) {
+                    confpaths.push(repo.toPathInRepo(postfixedPath));
+                    if (confpaths.length === 1) console.log("CONFLICT");
                 }
             }
             if (confpaths.length > 0) {
