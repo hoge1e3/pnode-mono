@@ -179,3 +179,6 @@ export class Author {
   }
 }
 export type GitObject = { type: ObjectType; hash: Hash, content: Buffer };
+export interface IShell {
+  echo(...a:any[]):Promise<void>;
+}

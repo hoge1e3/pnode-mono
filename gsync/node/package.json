@@ -12,6 +12,9 @@
     "bin": {
         "gsync": "./bin.js"
     },
+    "bin-ace": {
+        "gsync": "./bin-ace.js"
+    },
     "main": "js/src/cmd.js",
     "version": "1.0.3",
     "type": "module",

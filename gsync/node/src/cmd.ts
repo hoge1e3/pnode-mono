@@ -1,7 +1,7 @@
 import * as path from "path";
 import { isUtf8Text, Repo, sameExceptCRLF, stripCR } from "./git.js";
 import { GIT_DIR_NAME, Sync, SyncFactory } from "./sync.js";
-import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, Author, BranchName, Conflict, FilePath, Hash, PathInRepo, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, CommitEntry, isHash } from "./types.js";
+import { APIConfig, asBranchName, asFilePath, asHash, asLocalRef, Author, BranchName, Conflict, FilePath, Hash, PathInRepo, SyncStatus, Conflicted, CloneOptions, ConflictResolutionPolicy, CommitEntry, isHash, IShell } from "./types.js";
 import { promises as fs } from "fs";
 import { factory as offlineObjectStoreFactory } from "./objects.js";
 import { getSplashScreen } from "./splash.js";
@@ -12,10 +12,13 @@ import { diffLines } from "diff";
 import { merge3 } from "./merge3.js";
 
 const splashScreen = await getSplashScreen();
-let verbose = false;
-
-export async function main(cwd = process.cwd(), argv = process.argv): Promise<any> {
-    const cli = new Cli(cwd);
+class NodeShell implements IShell {
+    async echo(...a: any[]): Promise<void> {
+        console.log(...a);
+    }
+}
+export async function main(cwd = process.cwd(), argv = process.argv, shell:IShell=new NodeShell()): Promise<any> {
+    const cli = new Cli(cwd, shell);
     try {
         // 1st command line arg is either clone commit sync
         // call corresponding function
@@ -25,7 +28,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             case "clone_overwrite":
             case "clone_nocheckout":
                 if (args.length < 2) {
-                    console.log(argv.join(" ") + " <serverUrl> <repoId> [<branch-or-commitHash>]");
+                    await shell.echo(argv.join(" ") + " <serverUrl> <repoId> [<branch-or-commitHash>]");
                     return;
                 }
                 const b = args[2] || "main";
@@ -38,7 +41,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
                 }
             case "init":
                 if (args.length < 1) {
-                    console.log(argv.join(" ") + " <serverUrl>");
+                    await shell.echo(argv.join(" ") + " <serverUrl>");
                     return;
                 }
                 return await cli.init(args[0], GIT_DIR_NAME);
@@ -97,7 +100,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
                         }
                     }
                     if (!targetBranch) {
-                        console.log("Usage: gsync switch <branch> [-c] [-f]");
+                        await shell.echo("Usage: gsync switch <branch> [-c] [-f]");
                         throw new Error("No branch specified.");
                     }
                     return await cli.switchBranch(targetBranch, { create, force });
@@ -107,7 +110,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             case "msync":
                 {
                     if (args.length < 1) {
-                        console.log("Usage: gsync msync <branch>");
+                        await shell.echo("Usage: gsync msync <branch>");
                         return;
                     }
                     return await cli.msync(args[0]);
@@ -115,7 +118,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             case "merge":
                 {
                     if (args.length < 1) {
-                        console.log("Usage: gsync merge <branch>");
+                        await shell.echo("Usage: gsync merge <branch>");
                         return;
                     }
                     return await cli.mergeBranch(args[0]);
@@ -135,12 +138,20 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         await splashScreen.hide();
     }
 }
-    export class Cli {
+export class Cli {
     cwd: string;
-    constructor(cwd: string = process.cwd()) {
+    shell: IShell;
+    verbose=false;
+    constructor(cwd: string = process.cwd(), shell:IShell=new NodeShell()) {
         this.cwd = cwd;
+        this.shell = shell;
     }
-
+    async echo(...a:any[]){
+        await this.shell.echo(...a);
+    }
+    debug(...a:any[]) {
+        if (this.verbose) console.log(...a);
+    }
 
     async resetHard(targetBranch: string | undefined) {
         const gitDir = await this.findGitDir();
@@ -169,7 +180,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         // clear merge state and set local ref to remote
         await repo.writeMergeHead();
         await repo.updateHead(localRef, remoteHead);
-        console.log(`Reset '${branch}' to remote ${remoteHead}`);
+        await this.echo(`Reset '${branch}' to remote ${remoteHead}`);
         return;
     }
 
@@ -195,7 +206,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         };
         for (let d of await scanDir(asFilePath(this.cwd))) {
             if (shell) {
-                console.log("cd", d, ";gsync");
+                await this.echo("cd", d, ";gsync");
                 continue;
             }
             const field: string[] = [d];
@@ -207,7 +218,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
                 if (showRepo) field.push(conf.repoId);
                 if (showKey) field.push(conf.apiKey);
             }
-            console.log(...field);
+            await this.echo(...field);
         }
     }
 
@@ -216,7 +227,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         const gitDir = asFilePath(dir);
         const syncf = new SyncFactory(gitDir);
         const conf = await syncf.readConfig();
-        console.log("gsync clone " + conf.serverUrl + " " + conf.repoId);
+        await this.echo("gsync clone " + conf.serverUrl + " " + conf.repoId);
     }
 
     async manage(gitDirName: string = GIT_DIR_NAME) {
@@ -230,7 +241,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             url.match(/\w+.php$/) ?
                 url.replace(/\w+.php$/, "manage.php") :
                 url + "manage.php";
-        console.log(`Open ${manage}?repo=${repoId}`);
+        await this.echo(`Open ${manage}?repo=${repoId}`);
     }
     async offlineRepo(gitDir: FilePath): Promise<Repo> {
         const objectStore = await offlineObjectStoreFactory(gitDir);
@@ -240,13 +251,13 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
     async msync(branchName: string): Promise<SyncStatus> {
         const r1 = await this.syncWithRetry("saveHashedRemote");
         if (Array.isArray(r1)) throw new Error(`Conflict after sync: ${r1.join(", ")}`);
-        console.log("sync1:", r1);
+        this.debug("sync1:", r1);
         const r2 = await this.mergeBranch(branchName);
         if (Array.isArray(r2)) throw new Error(`Conflict during merge: ${r2.join(", ")}`);
-        console.log("merge:", r2);
+        this.debug("merge:", r2);
         const r3 = await this.syncWithRetry("saveHashedRemote");
         if (Array.isArray(r3)) throw new Error(`Conflict after sync: ${r3.join(", ")}`);
-        console.log("sync2:", r3);
+        this.debug("sync2:", r3);
         return r3;
     }
 
@@ -255,12 +266,12 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         const repo = await this.offlineRepo(gitDir);
         const obj = await repo.readObject(asHash(hash));
         if (!obj) {
-            console.log("No such object: ", hash);
+            await this.echo("No such object: ", hash);
             return;
         }
-        console.log("Type: ", obj.type);
-        console.log("Content: ");
-        console.log(obj.content.toString());
+        await this.echo("Type: ", obj.type);
+        await this.echo("Content: ");
+        await this.echo(obj.content.toString());
     }
 
     async init(serverUrl: string, gitDirName: string = GIT_DIR_NAME) {
@@ -272,7 +283,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         const syncf = new SyncFactory(gitDir);
         const sync = await syncf.init(serverUrl);
         const repoId = sync.webapi.config.repoId;
-        console.log("Initialized new repository with id: ", repoId);
+        await this.echo("Initialized new repository with id: ", repoId);
         const repo = sync.repo;
         await repo.setCurrentBranchName(asBranchName("main"));
         return repoId;
@@ -288,7 +299,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             if (!options.allowNonEmpty) throw new Error(`${into} is not empty.`);
             skipco = (options.allowNonEmpty === "skipCheckout");
         }
-        console.log(`Cloning into ${into}...`);
+        await this.echo(`Cloning into ${into}...`);
         await fs.mkdir(into, { recursive: true });
         const newGitDir = asFilePath(path.join(into, options.gitDirName));
         await fs.mkdir(newGitDir, { recursive: true });
@@ -339,7 +350,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         const branch = await repo.getCurrentBranchName();
         const ref = asLocalRef(branch);
         const curCommitHash = await repo.readHead(ref);
-        if (verbose) console.log("curCommitHash", curCommitHash);
+        this.debug("curCommitHash", curCommitHash);
         // even commit is failed unless online 
         const curCommit = curCommitHash ? await repo.readCommit(curCommitHash) : null;
         let newCommitTreeHash;
@@ -351,10 +362,10 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             const tree = await repo.buildTreeFromWorkingDir();
             newCommitTreeHash = await repo.writeTree(tree);
         }
-        if (verbose) console.log("newCommitTreeHash", newCommitTreeHash);
+        this.debug("newCommitTreeHash", newCommitTreeHash);
         const MERGE_HEAD = await repo.readMergeHead();
         if (!MERGE_HEAD && curCommit && curCommit.tree === newCommitTreeHash) {
-            console.log(branch, ": Nothing changed");
+            await this.echo(branch, ": Nothing changed");
             return curCommitHash!;
         }
         let isMobile: RegExpMatchArray | null = null;
@@ -371,7 +382,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             tree: newCommitTreeHash
         });
         if (MERGE_HEAD) await repo.writeMergeHead();
-        if (verbose) console.log("New commit for", branch, ": ", newCommitHash);
+        this.debug("New commit for", branch, ": ", newCommitHash);
         await repo.updateHead(ref, newCommitHash);
         return newCommitHash;
     }
@@ -415,7 +426,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             // push to remote(new)
             await splashScreen.show("Upload objects");
             await sync.uploadObjects();
-            if (verbose) console.log("Push ", branch, " into ", localCommitHash);
+            this.debug("Push ", branch, " into ", localCommitHash);
             await sync.addRemoteHead(branch, localCommitHash);
             return "newly_pushed";
         }
@@ -424,12 +435,12 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         if (remoteCommitHash === baseCommitHash) {
             // update remote
             if (localCommitHash === remoteCommitHash) {
-                console.log("Remote is up-to-date: ", localCommitHash);
+                await this.echo("Remote is up-to-date: ", localCommitHash);
                 return "no_changes";
             }
             await splashScreen.show("Upload objects");
             await sync.uploadObjects();
-            if (verbose) console.log("Push into remote: ", remoteCommitHash, " to ", localCommitHash);
+            await this.echo("Push into remote: ", remoteCommitHash, " to ", localCommitHash);
             await sync.setRemoteHead(branch, remoteCommitHash, localCommitHash);
             return "pushed";
         }
@@ -443,7 +454,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             const diff = await repo.diffTreeRecursive(localTree, remoteTree);
             await repo.applyDiff(diff);
             await repo.updateHead(asLocalRef(branch), remoteCommitHash);
-            console.log("Update local branch", localCommitHash, "to", remoteCommitHash);
+            await this.echo("Update local branch", localCommitHash, "to", remoteCommitHash);
             return "pulled";
         }
         const baseCommit = await repo.readCommit(baseCommitHash);
@@ -452,10 +463,10 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         await repo.writeMergeHead(remoteCommitHash);
         await repo.applyDiff(toA);
         if (conflicts.length == 0) {
-            console.log("Auto-Merged from ", remoteCommitHash);
+            await this.echo("Auto-Merged from ", remoteCommitHash);
             const mergedCommitHash = await this.commit();
-            if (verbose) console.log("Merged commit hash: ", mergedCommitHash);
-            if (verbose) console.log("Run sync again to push merged commit");
+            this.debug("Merged commit hash: ", mergedCommitHash);
+            //if (verbose) console.log("Run sync again to push merged commit");
             return "auto_merged";
         } else {
             let confpaths: Conflicted = [];
@@ -463,17 +474,17 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
                 const postfixedPath = await this.processConflict(repo, c, remoteCommitHash, conflictResolutionPolicy, remoteCommitTime);
                 if (postfixedPath) {
                     confpaths.push(repo.toPathInRepo(postfixedPath));
-                    if (confpaths.length == 1) console.log("CONFLICT");
+                    if (confpaths.length == 1) await this.echo("CONFLICT");
                 }
             }
             if (confpaths.length > 0) {
-                console.log("Resolve conflicts and run sync again");
+                await this.echo("Resolve conflicts and run sync again");
                 return confpaths;
             } else {
-                console.log("Auto-Merged from ", remoteCommitHash);
+                await this.echo("Auto-Merged from ", remoteCommitHash);
                 const mergedCommitHash = await this.commit();
-                if (verbose) console.log("Merged commit hash: ", mergedCommitHash);
-                if (verbose) console.log("Run sync again to push merged commit");
+                this.debug("Merged commit hash: ", mergedCommitHash);
+                //if (verbose) console.log("Run sync again to push merged commit");
                 return "auto_merged";
             }
         }
@@ -508,11 +519,11 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
                             (await fs.stat(localPath)).mtime.getTime() ? "remote" : "local") :
                         null;
         if (winner === "remote") {
-            console.log(`Overwrite ${localPath}`);
+            await this.echo(`Overwrite ${localPath}`);
             await fs.writeFile(localPath, sourceObj.content);
             return null;
         } else if (winner === "local") {
-            console.log(`Skip ${localPath}`);
+            await this.echo(`Skip ${localPath}`);
             return null;
         }
         const baseContent_str = isUtf8Text(stripCR(baseContent));
@@ -528,13 +539,13 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         }
         const postfix = `(${commitHash.substring(0, 8)})`;
         const postfixedPath = await this.conflictedFile(repo, localPath, postfix);
-        console.log(`Conflict saved at ${postfixedPath}`);
+        await this.echo(`Conflict saved at ${postfixedPath}`);
         await fs.mkdir(path.dirname(postfixedPath), { recursive: true });
         await fs.writeFile(postfixedPath, sourceObj.content);
         if (merged.length > 0) {
             const postfix = `(merge-${commitHash.substring(0, 8)})`;
             const postfixedPath = await this.conflictedFile(repo, localPath, postfix);
-            console.log(`Conflict-merged saved at ${postfixedPath}`);
+            await this.echo(`Conflict-merged saved at ${postfixedPath}`);
             await fs.writeFile(postfixedPath, merged);
         }
         return postfixedPath;
@@ -559,8 +570,8 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         if (!ch) return;
         let c = await repo.readCommit(ch);
         while (c) {
-            console.log(ch, c.message);
-            if (check_ref) console.log("Scanned objects: ", await Cli.checkRef(repo, ch));
+            await this.echo(ch, c.message);
+            if (check_ref) await this.echo("Scanned objects: ", await Cli.checkRef(repo, ch));
             let next: CommitEntry | undefined;
             for (let canh of c.parents) {
                 try {
@@ -574,7 +585,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
                 }
             }
             c = next!;
-            //if (c.parents[1]) console.log("Skipped merge commit: ",c.parents[1]);
+            //if (c.parents[1]) await this.echo("Skipped merge commit: ",c.parents[1]);
         }
     }
 
@@ -608,9 +619,9 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         const branches = await repo.getBranches();
         for (const branch of branches) {
             if (branch === currentBranch) {
-                console.log(`* ${branch}`);
+                await this.echo(`* ${branch}`);
             } else {
-                console.log(`  ${branch}`);
+                await this.echo(`  ${branch}`);
             }
         }
     }
@@ -622,7 +633,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         const repo = sync.repo;
         const currentBranch = await repo.getCurrentBranchName();
         if (currentBranch === branchName && !options.create) {
-            console.log(`Already on '${branchName}'`);
+            await this.echo(`Already on '${branchName}'`);
             return;
         }
         const branches = await repo.getBranches();
@@ -641,13 +652,13 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
                 throw new Error(`Cannot create branch '${branchName}' because current branch has no commits.`);
             }
             await repo.updateHead(asLocalRef(asBranchName(branchName)), currentCommitHash);
-            console.log(`Created branch '${branchName}'`);
+            await this.echo(`Created branch '${branchName}'`);
         } else {
             if (!branchExists) {
                 const remoteBranchCommit = await sync.getRemoteHead(asBranchName(branchName));
                 if (remoteBranchCommit) {
                     await repo.updateHead(asLocalRef(asBranchName(branchName)), remoteBranchCommit);
-                    console.log(`Fetched remote branch '${branchName}'`);
+                    await this.echo(`Fetched remote branch '${branchName}'`);
                 } else {
                     throw new Error(`Branch '${branchName}' does not exist locally or on remote.`);
                 }
@@ -678,7 +689,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         }
 
         await repo.setCurrentBranchName(asBranchName(branchName));
-        console.log(`Switched to branch '${branchName}'`);
+        await this.echo(`Switched to branch '${branchName}'`);
     }
 
     async mergeBranch(sourceBranchName: string): Promise<string | Conflicted> {
@@ -707,11 +718,11 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         if (localSourceCommitHash && remoteSourceCommitHash && localSourceCommitHash !== remoteSourceCommitHash) {
             const mergeBase = await repo.findMergeBase(localSourceCommitHash, remoteSourceCommitHash);
             if (mergeBase === localSourceCommitHash) {
-                console.log(`Local '${sourceBranchName}' is behind remote. Using remote version.`);
+                await this.echo(`Local '${sourceBranchName}' is behind remote. Using remote version.`);
                 sourceCommitHash = remoteSourceCommitHash;
                 await repo.updateHead(sourceRef, remoteSourceCommitHash);
             } else if (mergeBase === remoteSourceCommitHash) {
-                console.log(`Remote '${sourceBranchName}' is behind local. Using local version.`);
+                await this.echo(`Remote '${sourceBranchName}' is behind local. Using local version.`);
                 sourceCommitHash = localSourceCommitHash;
             } else {
                 throw new Error(`Source branch '${sourceBranchName}' has diverged between local and remote. Cannot auto-merge. Resolve manually or update one side.`);
@@ -723,7 +734,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         }
         const baseCommitHash = await repo.findMergeBase(currentCommitHash, sourceCommitHash);
         if (sourceCommitHash === baseCommitHash) {
-            console.log(`Already up-to-date.`);
+            await this.echo(`Already up-to-date.`);
             return "no_changes";
         }
 
@@ -736,7 +747,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
             const diff = await repo.diffTreeRecursive(currentTree, sourceTree);
             await repo.applyDiff(diff);
             await repo.updateHead(currentRef, sourceCommitHash);
-            console.log(`Fast-forward: merged branch '${sourceBranchName}' into '${currentBranch}'`);
+            await this.echo(`Fast-forward: merged branch '${sourceBranchName}' into '${currentBranch}'`);
             return "pulled";
         }
 
@@ -749,9 +760,9 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         await repo.applyDiff(toA);
 
         if (conflicts.length === 0) {
-            console.log(`Auto-merging branch '${sourceBranchName}'`);
+            this.debug(`Auto-merging branch '${sourceBranchName}'`);
             const mergedCommitHash = await this.commit(`Merge branch '${sourceBranchName}' into '${currentBranch}'`);
-            console.log(`Merge commit created: ${mergedCommitHash}`);
+            await this.echo(`Merge commit created: ${mergedCommitHash}`);
             return "auto_merged";
         } else {
             let confpaths: Conflicted = [];
@@ -759,16 +770,16 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
                 const postfixedPath = await this.processConflict(repo, c, sourceCommitHash);
                 if (postfixedPath) {
                     confpaths.push(repo.toPathInRepo(postfixedPath));
-                    if (confpaths.length === 1) console.log("CONFLICT");
+                    if (confpaths.length === 1) await this.echo("CONFLICT");
                 }
             }
             if (confpaths.length > 0) {
-                console.log("Resolve conflicts and run commit to complete the merge.");
+                await this.echo("Resolve conflicts and run commit to complete the merge.");
                 return confpaths;
             } else {
-                console.log(`Auto-merging branch '${sourceBranchName}'`);
+                await this.echo(`Auto-merging branch '${sourceBranchName}'`);
                 const mergedCommitHash = await this.commit(`Merge branch '${sourceBranchName}' into '${currentBranch}'`);
-                console.log(`Merge commit created: ${mergedCommitHash}`);
+                await this.echo(`Merge commit created: ${mergedCommitHash}`);
                 return "auto_merged";
             }
         }
@@ -787,7 +798,7 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         const commitHash = await repo.readHead(localRef);
 
         if (!commitHash) {
-            console.log("No commits yet.");
+            await this.echo("No commits yet.");
             return;
         }
 
@@ -798,33 +809,75 @@ export async function main(cwd = process.cwd(), argv = process.argv): Promise<an
         const diffs = await repo.diffTreeRecursive(commitTree, workingTree);
 
         if (diffs.length === 0) {
-            console.log("No changes.");
+            await this.echo("No changes.");
             return;
         }
 
-        console.log(`Changes between HEAD (${commitHash.substring(0, 8)}) and working directory:`);
-        console.log("");
+        await this.echo(`Changes between HEAD (${commitHash.substring(0, 8)}) and working directory:`);
+        await this.echo("");
 
         for (const diff of diffs) {
             const status = diff.type === "deleted" ? "deleted" : (diff.type === "added" ? "new file" : "modified");
             const path = diff.path;
-            console.log(`${status.padEnd(11)} ${path}`);
+            await this.echo(`${status.padEnd(11)} ${path}`);
 
             if (verbose) {
                 if (diff.type === "modified") {
                     const oldText = await repo.readBlobAsText(diff.oldHash);
                     const newPath = repo.toFilePath(diff.path);
                     const newText = await fs.readFile(newPath, "utf-8");
-                    showLineDiff(path, oldText, newText);
+                    await this.showLineDiff(path, oldText, newText);
                 } else if (diff.type === "added") {
                     const newPath = repo.toFilePath(diff.path);
                     const newText = await fs.readFile(newPath, "utf-8");
-                    showLines(path, newText, "+");
+                    await this.showLines(path, newText, "+");
                 } else if (diff.type === "deleted") {
                     const oldText = await repo.readBlobAsText(diff.oldHash);
-                    showLines(path, oldText, "-");
+                    await this.showLines(path, oldText, "-");
                 }
             }
+        }
+    }
+    
+    async showLineDiff(
+        path: PathInRepo,
+        oldText: string,
+        newText: string
+    ): Promise<void> {
+        const changes = diffLines(oldText, newText);
+        let changed = false;
+
+        for (const change of changes) {
+            if (!change.added && !change.removed) continue;
+            if (!changed) {
+                await this.echo(`  @@ ${path} @@`);
+                changed = true;
+            }
+
+            const lines = change.value.split("\n");
+
+            // diffLines() は末尾の改行を含む場合、
+            // split() の結果の最後に "" が入るので除去する
+            if (lines.length > 0 && lines[lines.length - 1] === "") {
+                lines.pop();
+            }
+
+            if (change.removed) {
+                for (const line of lines) {
+                    await this.echo(`  -${line}`);
+                }
+            } else if (change.added) {
+                for (const line of lines) {
+                    await this.echo(`  +${line}`);
+                }
+            }
+        }
+    }
+    async showLines(path: PathInRepo, text: string, prefix: string): Promise<void> {
+        const lines = text.split("\n");
+        if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+        for (const line of lines) {
+            await this.echo(`  ${prefix}${line}`);
         }
     }
 }
@@ -881,41 +934,7 @@ export function mergeBranch(dir: string, sourceBranchName: string) {
 export function diffCmd(dir: string, args: string[]) {
     return new Cli(dir).diffCmd(args);
 }
-
-function showLineDiff(
-    path: PathInRepo,
-    oldText: string,
-    newText: string
-): void {
-    const changes = diffLines(oldText, newText);
-    let changed = false;
-
-    for (const change of changes) {
-        if (!change.added && !change.removed) continue;
-        if (!changed) {
-            console.log(`  @@ ${path} @@`);
-            changed = true;
-        }
-
-        const lines = change.value.split("\n");
-
-        // diffLines() は末尾の改行を含む場合、
-        // split() の結果の最後に "" が入るので除去する
-        if (lines.length > 0 && lines[lines.length - 1] === "") {
-            lines.pop();
-        }
-
-        if (change.removed) {
-            for (const line of lines) {
-                console.log(`  -${line}`);
-            }
-        } else if (change.added) {
-            for (const line of lines) {
-                console.log(`  +${line}`);
-            }
-        }
-    }
-}/*
+/*
 function showLineDiff(path: PathInRepo, oldText: string, newText: string): void {
     const oldLines = oldText.split("\n");
     const newLines = newText.split("\n");
@@ -942,11 +961,3 @@ function showLineDiff(path: PathInRepo, oldText: string, newText: string): void 
         }
     }
 }*/
-
-function showLines(path: PathInRepo, text: string, prefix: string): void {
-    const lines = text.split("\n");
-    if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-    for (const line of lines) {
-        console.log(`  ${prefix}${line}`);
-    }
-}
