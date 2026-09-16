@@ -17,15 +17,20 @@
 
 import { Worker } from 'node:worker_threads';
 import * as path from 'node:path';
+import * as fs from "node:fs";
 import { promises as fsp } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { Repo, isUtf8Text, stripCR } from '../js/src/git.js';
 import { factory as objectStoreFactory } from '../js/src/objects.js';
+import {DownloadableObjectStore} from "../js/src/sync.js";
+import { PHPClientFactory } from '../js/src/webapi.js';
+
+const apiFactory=new PHPClientFactory();// TODO: firebase etc.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GIT_DIR_NAME = '.gsync';
-
+const REMOTE_CONF_FILE="remote-conf.json";
 async function exists(p) {
   try { await fsp.access(p); return true; } catch { return false; }
 }
@@ -71,7 +76,11 @@ function runMerge3InWorker(base, mine, theirs, timeoutMs) {
     });
   });
 }
-
+async function readConfig(dir) {
+  const conffile = path.join(dir, REMOTE_CONF_FILE);
+  const conf = JSON.parse(await fs.promises.readFile(conffile, { encoding: "utf-8" }));
+  return conf;
+}
 async function main() {
   const args = process.argv.slice(2);
   const targetDir = path.resolve(args.find(a => !a.startsWith('--')) || process.cwd());
@@ -85,7 +94,11 @@ async function main() {
     process.exit(1);
   }
 
-  const objectStore = await objectStoreFactory(gitDir);
+  const conf=await readConfig(gitDir);
+  const api=await apiFactory.load(conf);
+  const offlineStore=await objectStoreFactory(gitDir, api.repoId);
+  const objectStore=new DownloadableObjectStore(offlineStore,api);
+
   const repo = new Repo(gitDir, objectStore);
 
   // 1. すべてのローカルブランチの先端コミットを集める
