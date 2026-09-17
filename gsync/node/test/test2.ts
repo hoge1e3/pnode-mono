@@ -242,6 +242,39 @@ is
 test
 `);  
 
+/*
+$ gsync cat-file 76e0e18cb1a7421d9d23b99ed6d254389d38ba00
+$ gsync cat-file dce3d5fe7c14924560efe44983093e49531aa334
+$ gsync cat-file 0e9f1d2bc2b732c8527b2440e8e7e083ae3b74f0
+*/
+const hang_76e0e1=`#!run
+
+export async function main(){
+  return ;
+}
+/*
+
+*/
+`;
+const hang_dce3d=`#!run
+
+export async function main(){
+  return ;
+}
+/*
+ escボタンの隣にscrollボタン追加
+ ctrl+a [ をターミナルに送る
+*/
+`;
+const hang_0e9f1d=`#!run
+
+export async function main(){
+  return ;
+}
+`;
+  const conflict_hang=merge3(hang_76e0e1, hang_dce3d, hang_0e9f1d);
+  console.log(conflict_hang);
+
 }
 export async function main(){
   if (!fs.existsSync("../cotest/.gsync")) {

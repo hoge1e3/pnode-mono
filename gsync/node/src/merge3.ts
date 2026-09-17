@@ -38,13 +38,18 @@ export function merge3(ancestor:string,mine:string,theirs:string):[string,boolea
   const ns=Math.min(m?m.start:1e9,t?t.start:1e9,base.length);
   while(pos<ns){res.push(base[pos++]);}
   if(pos>=base.length && !m && !t)break;
-  if(m && m.start==pos && (!t||t.start>pos)){
+  const mHere = !!m && m.start===pos;
+  const tHere = !!t && t.start===pos;
+  
+  /*if(mHere && (!t||t.start>pos)){
     res.push(...m.lines); pos=m.end; mi++; continue;
   }
-  if(t && t.start==pos && (!m||m.start>pos)){
+  if(tHere && (!m||m.start>pos)){
     res.push(...t.lines); pos=t.end; ti++; continue;
-  }
-  if(m&&t&&m.start==pos&&t.start==pos){
+  }*/
+  if(mHere&&tHere){
+  //if(m&&t&&m.start==pos&&t.start==pos){
+    // 既存の「両方が同じ位置から始まる」処理（そのまま）
     if(m.end==t.end && JSON.stringify(m.lines)==JSON.stringify(t.lines)){
       res.push(...m.lines);
     }else{
@@ -82,6 +87,19 @@ export function merge3(ancestor:string,mine:string,theirs:string):[string,boolea
     }
     pos=Math.max(m.end,t.end); mi++; ti++; continue;
   }
+  // ここを追加: 片方の編集が、もう片方の範囲に食い込んでいたらコンフリクト扱いにする
+  if(mHere && t && t.start<m.end){
+    res.push("<<<<<<< MINE", ...m.lines, "=======", ...t.lines, ">>>>>>> THEIRS");
+    hasConflict=true;
+    pos=Math.max(m.end,t.end); mi++; ti++; continue;
+  }
+  if(tHere && m && m.start<t.end){
+    res.push("<<<<<<< MINE", ...m.lines, "=======", ...t.lines, ">>>>>>> THEIRS");
+    hasConflict=true;
+    pos=Math.max(m.end,t.end); mi++; ti++; continue;
+  }
+  if(mHere){ res.push(...m.lines); pos=m.end; mi++; continue; }
+  if(tHere){ res.push(...t.lines); pos=t.end; ti++; continue; }
   if(pos<base.length){res.push(base[pos++]);}
  }
  return [res.join("\n"),hasConflict];
