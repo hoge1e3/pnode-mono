@@ -28,6 +28,57 @@ function edits(a:string[],b:string[]):Edit[]{
  return out;
 }
 
+// m.lines と t.lines を比較し、完全に同じならそのまま res に出力し、
+// 違いがあれば内部でさらに diff を取って、本当に違う部分だけを
+// <<<<<<< MINE / ======= / >>>>>>> THEIRS で囲んで出力する。
+// これにより「両方が全く同じ行を挿入した」「一部だけ重なっている」といった
+// ケースで、不要なコンフリクトマーカーを避けられる。
+// 戻り値はこの呼び出しでコンフリクトが実際に発生したかどうか。
+function emitMergeOrConflict(res:string[], m:Edit, t:Edit):boolean{
+  if(m.end==t.end && JSON.stringify(m.lines)==JSON.stringify(t.lines)){
+    res.push(...m.lines);
+    return false;
+  }
+  let hasConflict=false;
+  // diffLines は文字列単位なので join して diff を取り、各 change を処理する
+  const md = diffLines(m.lines.join("\n"), t.lines.join("\n"));
+  // グルーピングして連続する変更をひとつのコンフリクトブロックにする
+  let pendingMine: string[] = [];
+  let pendingTheirs: string[] = [];
+  const isEmpty=(s:string[])=>s.join("\n").trim()==="";
+  const flush = () => {
+    if(pendingMine.length===0 && pendingTheirs.length===0) return;
+    const em=isEmpty(pendingMine), et=isEmpty(pendingTheirs);
+    if (em || et) {
+      if (!et) res.push(...pendingTheirs);
+      if (!em) res.push(...pendingMine);
+    } else {
+      hasConflict = true;
+      res.push("<<<<<<< MINE");
+      res.push(...pendingMine);
+      res.push("=======");
+      res.push(...pendingTheirs);
+      res.push(">>>>>>> THEIRS");
+    }
+    pendingMine = [];
+    pendingTheirs = [];
+  };
+  for(const c of md as any){
+    if(!c.added && !c.removed){
+      // 共通部分はまず未決を出してからそのまま出力
+      flush();
+      const common = chunkLines(c.value);
+      res.push(...common);
+    }else if(c.removed){
+      pendingMine.push(...chunkLines(c.value));
+    }else if(c.added){
+      pendingTheirs.push(...chunkLines(c.value));
+    }
+  }
+  flush();
+  return hasConflict;
+}
+
 export function merge3(ancestor:string,mine:string,theirs:string):[string,boolean]{
  const base=toLines(ancestor);
  const me=edits(base,toLines(mine));
@@ -40,62 +91,21 @@ export function merge3(ancestor:string,mine:string,theirs:string):[string,boolea
   if(pos>=base.length && !m && !t)break;
   const mHere = !!m && m.start===pos;
   const tHere = !!t && t.start===pos;
-  
-  /*if(mHere && (!t||t.start>pos)){
-    res.push(...m.lines); pos=m.end; mi++; continue;
-  }
-  if(tHere && (!m||m.start>pos)){
-    res.push(...t.lines); pos=t.end; ti++; continue;
-  }*/
+
   if(mHere&&tHere){
-  //if(m&&t&&m.start==pos&&t.start==pos){
-    // 既存の「両方が同じ位置から始まる」処理（そのまま）
-    if(m.end==t.end && JSON.stringify(m.lines)==JSON.stringify(t.lines)){
-      res.push(...m.lines);
-    }else{
-      // m.linesとt.linesに同じ行が含まれていても全部出してくるので
-      // さらにdiffをとって本当に違うところだけ MINE/THEIRS にする。
-      // diffLines は文字列単位なので join して diff を取り、各 change を処理する
-      const md = diffLines(m.lines.join("\n"), t.lines.join("\n"));
-      // グルーピングして連続する変更をひとつのコンフリクトブロックにする
-      let pendingMine: string[] = [];
-      let pendingTheirs: string[] = [];
-      const flush = () => {
-        if(pendingMine.length===0 && pendingTheirs.length===0) return;
-        hasConflict = true;
-        res.push("<<<<<<< MINE");
-        res.push(...pendingMine);
-        res.push("=======");
-        res.push(...pendingTheirs);
-        res.push(">>>>>>> THEIRS");
-        pendingMine = [];
-        pendingTheirs = [];
-      };
-      for(const c of md as any){
-        if(!c.added && !c.removed){
-          // 共通部分はまず未決を出してからそのまま出力
-          flush();
-          const common = chunkLines(c.value);
-          res.push(...common);
-        }else if(c.removed){
-          pendingMine.push(...chunkLines(c.value));
-        }else if(c.added){
-          pendingTheirs.push(...chunkLines(c.value));
-        }
-      }
-      flush();
-    }
+    // 両方が同じ位置から始まる編集
+    if(emitMergeOrConflict(res,m,t)) hasConflict=true;
     pos=Math.max(m.end,t.end); mi++; ti++; continue;
   }
-  // ここを追加: 片方の編集が、もう片方の範囲に食い込んでいたらコンフリクト扱いにする
+  // 片方の編集が、もう片方の範囲に食い込んでいる場合もコンフリクトとして
+  // まとめて処理する（そうしないと pos が相手の start を追い越してしまい、
+  // 二度と mi/ti が進まなくなって無限ループする）
   if(mHere && t && t.start<m.end){
-    res.push("<<<<<<< MINE", ...m.lines, "=======", ...t.lines, ">>>>>>> THEIRS");
-    hasConflict=true;
+    if(emitMergeOrConflict(res,m,t)) hasConflict=true;
     pos=Math.max(m.end,t.end); mi++; ti++; continue;
   }
   if(tHere && m && m.start<t.end){
-    res.push("<<<<<<< MINE", ...m.lines, "=======", ...t.lines, ">>>>>>> THEIRS");
-    hasConflict=true;
+    if(emitMergeOrConflict(res,m,t)) hasConflict=true;
     pos=Math.max(m.end,t.end); mi++; ti++; continue;
   }
   if(mHere){ res.push(...m.lines); pos=m.end; mi++; continue; }
