@@ -1,0 +1,36 @@
+{
+    "name": "@acepad/gsync",
+    "description": "git-like sync tool for AcePad",
+    "scripts": {
+        "tsc": "npx tsc",
+        "build": "npx tsc",
+        "test": "npm run build && node js/test/test2.js && node js/test/test-index.js && node js/test/test-branch-merge.js",
+        "buildc": "npm run build && npm run cp",
+        "webpack-dev": "echo 'no-webpack-needed'",
+        "cp": "bash cp2idb.sh"
+    },
+    "bin": {
+        "gsync": "./bin.js"
+    },
+    "bin-ace": {
+        "gsync": "./bin-ace.js"
+    },
+    "main": "js/src/cmd.js",
+    "version": "1.0.3",
+    "type": "module",
+    "devDependencies": {
+        "@types/difflib": "^0.2.7",
+        "@types/node": "^25.0.3",
+        "@types/web": "^0.0.278",
+        "@typescript-eslint/eslint-plugin": "^8.57.0",
+        "@typescript-eslint/parser": "^8.57.0",
+        "eslint": "^9.1.1",
+        "typescript": "^5.8.3",
+        "typescript-eslint": "^8.57.0"
+    },
+    "dependencies": {
+        "diff": "^9.0.0",
+        "ignore": "^7.0.5",
+        "mutable-promise": "^1.1.15"
+    }
+}

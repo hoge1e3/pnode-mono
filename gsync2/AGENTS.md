@@ -42,6 +42,7 @@ All types use TypeScript's branded types pattern for compile-time safety without
 ### Path Types
 - **`FilePath`**: Absolute or relative file system path
 - **`PathInRepo`**: Path relative to repository root (always uses `/` separator)
+- **`BranchName`**: Git branch name (e.g., `"main"`, `"feature/auth"`)
 
 ### Git Objects
 - **`Hash`**: 40-character SHA1 hash (must match `/^[0-9a-f]{40}$/`)
@@ -49,7 +50,7 @@ All types use TypeScript's branded types pattern for compile-time safety without
 - **`PHPTimestamp`**: Unix timestamp (used for server communication)
 
 ### API Types
-- **`APIConfig`**: `{ serverUrl, publicKey, privateKey }`
+- **`APIConfig`**: `{ serverUrl, repoId, apiKey }`
 - **`SyncStatus`**: `"auto_merged" | "no_changes" | "newly_pushed" | "pushed" | "pulled" | PathInRepo[]`
 - **`IgnoreState`**: `"none" | "max_mtime" | "all"` (controls which files to sync)
 
