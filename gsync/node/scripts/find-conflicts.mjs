@@ -224,7 +224,7 @@ async function main() {
       if (tag !== 'ok') {
         console.log(
           `[${tag}] ${c.path}  ${r.timedOut ? '>' + timeoutMs : r.ms.toFixed(0)}ms  ` +
-          `base=${(c.base || '(none)').slice(0, 8)} a=${c.a.slice(0, 8)} b=${c.b.slice(0, 8)}  ` +
+          `base=${(c.base || '(none)')/*.slice(0, 8)*/} a=${c.a/*.slice(0, 8)*/} b=${c.b/*.slice(0, 8)*/}  ` +
           `sizes(base/mine/theirs)=${baseStr.length}/${aStr.length}/${bStr.length}`
         );
       }
