@@ -42,7 +42,6 @@ All types use TypeScript's branded types pattern for compile-time safety without
 ### Path Types
 - **`FilePath`**: Absolute or relative file system path
 - **`PathInRepo`**: Path relative to repository root (always uses `/` separator)
-- **`BranchName`**: Git branch name (e.g., `"main"`, `"feature/auth"`)
 
 ### Git Objects
 - **`Hash`**: 40-character SHA1 hash (must match `/^[0-9a-f]{40}$/`)
@@ -50,7 +49,7 @@ All types use TypeScript's branded types pattern for compile-time safety without
 - **`PHPTimestamp`**: Unix timestamp (used for server communication)
 
 ### API Types
-- **`APIConfig`**: `{ serverUrl, repoId, apiKey }`
+- **`APIConfig`**: `{ serverUrl, publicKey, privateKey }`
 - **`SyncStatus`**: `"auto_merged" | "no_changes" | "newly_pushed" | "pushed" | "pulled" | PathInRepo[]`
 - **`IgnoreState`**: `"none" | "max_mtime" | "all"` (controls which files to sync)
 
@@ -66,15 +65,14 @@ Entry point: `main(cwd, argv)`
 
 | Command | Args | Description |
 |---------|------|-------------|
-| `clone` | `<serverUrl> <repoId> [branch]` | Clone entire repo with checkout |
-| `clone_nocheckout` | `<serverUrl> <repoId> [branch]` | Clone without working directory checkout |
-| `clone_overwrite` | `<serverUrl> <repoId> [branch]` | Clone, overwriting existing files |
+| `clone` | `<serverUrl> <commitHash>` | Clone entire repo with checkout |
+| `clone_nocheckout` | `<serverUrl> <commitHash>` | Clone without working directory checkout |
+| `clone_overwrite` | `<serverUrl> <commitHash>` | Clone, overwriting existing files |
 | `init` | `<serverUrl>` | Initialize new repository (empty local) |
 | `commit` | — | Stage and commit all changes (interactive mode) |
 | `sync` | — | Full sync (push+pull) with merge conflict detection |
 | `newer` | — | Only pull newer commits (no push) |
 | `log` | `[--verbose]` | Show commit history |
-| `branch` | `[list/create/switch]` | Manage branches |
 
 ### Sync Engine (`sync.ts`)
 
