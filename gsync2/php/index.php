@@ -25,12 +25,29 @@ switch ($path) {
         respond_with_log($input, downloadObjects($input["hash_list"]));
         break;
 
-    case 'set_head':
+    case 'commit':
+        /*{
+        "hash": "...",
+        "time": 1770000000,
+        "public_key": "...",
+        "signature": "..."
+        }*/
         $input = parseJson(file_get_contents('php://input'));
-        $status = setHead($input);
-        if (!$status) e505("Status is null :".json_encode(($input)));
-        else respond_with_log($input, ['status' => $status]);
+        $data=[];
+        foreach (["hash","public_key","signature"] as $attr) {
+            $data[$attr]=$input[$attr];
+        }
+        $data["time"]=time();
+        add_timeline($data);
+        respond_with_log($input, ['status' => "ok", "time"=>$data["time"]]);
         break;
+    case 'timeline':
+        $input = parseJson(file_get_contents('php://input'));
+        /*
+        limit, before: hash,  after: hash, 
+        */
+        respond_with_log($input, ['timeline' => get_timeline($input["limit"])]);
+        
 
     default:
         http_response_code(400);
