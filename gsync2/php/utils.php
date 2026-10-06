@@ -2,35 +2,21 @@
 
 require_once "config.php";
 require_once 'log.php';
-function createRepo(): string {
-    do {
-        $repo_id = bin2hex(random_bytes(8));
-        $repo_path = REPO_DIR . "/$repo_id";
-    } while (file_exists($repo_path));
-
+function initStorage() {
+    $repo_path=REPO_DIR;
     mkdir("$repo_path/objects", 0777, true);
     mkdir("$repo_path/refs/heads", 0777, true);
-    if (defined("ADMIN_DIR")){
-        $repoAdminDir = ADMIN_DIR . '/' . $repo_id;
-        mkdir($repoAdminDir, 0777,true);
-    }
-    return $repo_id;
+    $timeline_path=TIMELINE_DIR;
+    mkdir("$timeline_path", 0777, true);
+
 }
-function repoPath($repo_id):string{
-    return REPO_DIR . "/$repo_id";
-}
-function repoExists($repo_id):bool{
-    return file_exists(repoPath($repo_id));
-}
+initStorage();
 
 function uploadObjects(array $data): string {
-    $repo_id = $data['repo_id'];
+    
     $objects = $data['objects'];
-    if (!checkWriteAccess($repo_id, $data["api_key"])) {
-        e505("You have no permission to write $repo_id", $data);
-    }
-
-    $repo_path = REPO_DIR . "/$repo_id/objects";
+    
+    $repo_path = REPO_DIR . "/objects";
     if (!is_dir($repo_path)) {
         http_response_code(404);
         exit(json_encode(['error' => 'Repo not found']));
@@ -61,8 +47,8 @@ function uploadObjects(array $data): string {
 
     return $now;
 }
-function downloadObjectsByHashList(string $repo_id, array $hash_list): array {
-    $repo_path = REPO_DIR . "/$repo_id/objects";
+function downloadObjects( array $hash_list): array {
+    $repo_path = REPO_DIR . "/objects";
 
     if (!is_dir($repo_path)) {
         http_response_code(404);
@@ -86,97 +72,6 @@ function downloadObjectsByHashList(string $repo_id, array $hash_list): array {
     return ["objects"=>$result];
 }
 
-function downloadObjects(array $data): array {
-    $repo_id = $data['repo_id'];
-    $repo_path = REPO_DIR . "/$repo_id/objects";
-    if (isset($data["hash_list"])) {
-        return downloadObjectsByHashList($repo_id, $data["hash_list"]);
-    }
-    $since = $data['since'];
-
-    if (!is_dir($repo_path)) {
-        http_response_code(404);
-        exit(json_encode(['error' => 'Repo $repo_id not found']));
-    }
-
-    $result = [];
-
-    $dirs = scandir($repo_path);
-    $newest=time();
-    foreach ($dirs as $dir) {
-        if ($dir===".."||$dir===".") continue;
-        if (strlen($dir) !== 2 || !is_dir("$repo_path/$dir")) continue;
-
-        foreach (scandir("$repo_path/$dir") as $file) {
-            if ($file === '.' || $file === '..') continue;
-
-            $full = "$repo_path/$dir/$file";
-            $mt=filemtime($full);
-            if ($mt >= $since) {
-                //if ($mt >=$newest) $newest=$mt;
-                $hash = $dir . $file;
-                $binary = file_get_contents($full);
-                $base64 = base64_encode($binary);
-                $result[] = [
-                    'hash' => $hash,
-                    'content' => $base64,
-                    'mtime' => $mt,
-                ];
-            }
-        }
-    }
-
-    return ['objects' => $result, 'newest'=>$newest];
-}
-
-
-function getHead(array $data): ?string {
-    $repo_id = $data['repo_id'];
-    $branch = $data['branch'];
-    $allow_nonexistent= $data["allow_nonexistent"] ?? false;
-    $head_path = REPO_DIR . "/$repo_id/refs/heads/$branch";
-    if (!file_exists($head_path)) {
-        if ($allow_nonexistent) return null;
-        http_response_code(404);
-        exit(json_encode(['error' => "$repo_id:$branch not found"]));
-    }
-    return trim(file_get_contents($head_path));
-}
-
-function setHead(array $data): string {
-    $repo_id = $data['repo_id'];
-    $branch = $data['branch'];
-    $current = $data['current'] ?? null;
-    $next = $data['next'];
-    if (!checkWriteAccess($repo_id, $data["api_key"])) {
-        e505("You have no permission to write $repo_id", $data);
-    }
-
-    $heads_dir=REPO_DIR . "/$repo_id/refs/heads";
-    if (!is_dir($heads_dir)) {
-        mkdir($heads_dir, 0777, true);
-    }
-    $head_path = "$heads_dir/$branch";
-    if (file_exists($head_path)) {
-        $real_current=file_get_contents($head_path);
-        if ($current==null) {
-            e505("head for '$branch' is already set. 'current' parameter should be specified.");
-        }
-        if ($real_current!==$current) {
-            return $real_current;//"prev hash does not match: set $branch to $next";
-        }
-    }
-    // 履歴を残す（タイムスタンプ付きバックアップ）
-    /*if (file_exists($head_path)) {
-        $old = file_get_contents($head_path);
-        file_put_contents("$head_path." . time(), $old);
-    }*/
-
-    if (!file_put_contents($head_path, $next)) {
-        e505("Cannot write to $head_path=$next");
-    };
-    return "ok";
-}
 function parseJson($str) {
     if (strlen($str)===0) {
         throw new Exception("Empty json");
@@ -207,20 +102,4 @@ function create_log_entry($input) {
         }
     }
     return $log_entry;
-}
-
-function checkWriteAccess($repo, $providedKey) {
-    $keyFile = ADMIN_DIR."/$repo/apikeys.json";
-    if (!file_exists($keyFile)) {
-        return true;
-    }
-    $keys = json_decode(file_get_contents($keyFile), true);
-    if (!is_array($keys)) return false;
-    if (isset($keys["*"]) && $keys["*"]==="w") return true;
-    return isset($keys[$providedKey]) && $keys[$providedKey] === "w";
-}
-
-function createAdminDir($repo_id) {
-    $dir=ADMIN_DIR."/$repo_id";
-    if (!file_exists($dir)) mkdir($dir);
 }

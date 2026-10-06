@@ -22,12 +22,7 @@ switch ($path) {
 
     case 'download':
         $input = parseJson(file_get_contents('php://input'));
-        respond_with_log($input, downloadObjects($input));
-        break;
-
-    case 'get_head':
-        $input = parseJson(file_get_contents('php://input'));
-        respond_with_log($input, ['hash' => getHead($input)]);
+        respond_with_log($input, downloadObjects($input["hash_list"]));
         break;
 
     case 'set_head':
