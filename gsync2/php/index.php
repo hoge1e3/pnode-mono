@@ -46,7 +46,7 @@ switch ($path) {
         /*
         limit, before: hash,  after: hash, 
         */
-        respond_with_log($input, ['timeline' => get_timeline($input["limit"])]);
+        respond_with_log($input, ['timeline' => get_timeline($input)]);
         
 
     default:
