@@ -78,7 +78,11 @@ function add_timeline($tl){
 
 function get_timeline($params) {
     $limit=50;
-    $before=isset($params["before"]) ? $params["before"] : null;
-    $after=isset($params["after"]) ? $params["after"] : null;
+    $before=isset($params["before"]) ? $params["before"] : time();
+    $after=isset($params["after"]) ? $params["after"] : $before-86400;
+    header("Content-type: text/jsonl; charset=utf8;");
+    foreach (find($before, $after) as $data) {
+        print json_encode($data)."\n";
+    }
 
 }
