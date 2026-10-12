@@ -48,8 +48,6 @@ switch ($path) {
         limit, before: hash,  after: hash, 
         */
         respond_with_log($input, ['timeline' => get_timeline($input)]);
-
-
     default:
         http_response_code(400);
         respond_with_log([], ['error' => 'Invalid action']);

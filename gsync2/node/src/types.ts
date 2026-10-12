@@ -6,8 +6,9 @@ export function asPHPTimestamp(t:number) {
 const SymHash=Symbol("hash");
 export type APIConfig = { // TODO: firebase?
     serverUrl: string,
-    repoId: string,
-    apiKey: string,
+    keyPair: CryptoKeyPair,
+    //repoId: string,
+    //apiKey: string,
 };
 export type State = {
     //downloadSince: PHPTimestamp,
