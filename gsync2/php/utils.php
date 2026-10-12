@@ -2,12 +2,17 @@
 
 require_once "config.php";
 require_once 'log.php';
+function mkdirp($dir) {
+    if (!file_exists($dir)) {
+        mkdir($dir, 0777, true);
+    }
+}
 function initStorage() {
     $repo_path=REPO_DIR;
-    mkdir("$repo_path/objects", 0777, true);
-    mkdir("$repo_path/refs/heads", 0777, true);
+    mkdirp("$repo_path/objects");
+    mkdirp("$repo_path/refs/heads");
     $timeline_path=TIMELINE_DIR;
-    mkdir("$timeline_path", 0777, true);
+    mkdirp("$timeline_path");
 
 }
 initStorage();

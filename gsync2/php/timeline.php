@@ -23,9 +23,9 @@ function find($before, $after) {
             continue;
         }
         foreach(file($f) as $line) {
-            $obj=json_decode($line);
+            $obj=json_decode($line,true);
             if ($obj && 
-                $obj["time"]>=$after && $obj["time"]>=$before) {
+                $obj["time"]>=$after && $obj["time"]<=$before) {
                 yield $obj;
             } 
         }
@@ -81,8 +81,9 @@ function get_timeline($params) {
     $before=isset($params["before"]) ? $params["before"] : time();
     $after=isset($params["after"]) ? $params["after"] : $before-86400;
     header("Content-type: text/jsonl; charset=utf8;");
+    $res=[];
     foreach (find($before, $after) as $data) {
-        print json_encode($data)."\n";
+        $res[]=$data;
     }
-
+    return $res;
 }
