@@ -6,16 +6,26 @@ export interface WebApiFactory<I,C,W extends WebApi<C>>{
   init(initializer:I): Promise<W>;
   load(config:C): Promise<W>;
 }
+
+export type SubjectPublicKeyInfo=string|{[SPKI]:true};
+export interface Timeline{
+  time:Date;
+  hash:Hash;
+  publicKey: SubjectPublicKeyInfo;
+  sign: string;
+}
 export interface WebApi<C> {
   config: C;
   //createRepository(): Promise<{ repo_id: string }>;
-  setHead(branch: BranchName, current:Hash, next: Hash): Promise<void>;
-  addHead(branch: BranchName, next: Hash): Promise<void>;
+  //setHead(branch: BranchName, current:Hash, next: Hash): Promise<void>;
+  //addHead(branch: BranchName, next: Hash): Promise<void>;
   //hasHead(branch: BranchName): Promise<boolean>;
-  getHead(branch: BranchName): Promise<Hash|null>;
+  //getHead(branch: BranchName): Promise<Hash|null>;
   uploadObjects(objects: ObjectEntry[]): Promise<Date>;
   //downloadSince(since?: Date): Promise<{objects:ObjectEntry[],newest:Date}>;
   downloadObjects(hashList: Hash[]): Promise<ObjectEntry[]>;
+  getTimeLine(after:Date,before: Date):Promise<Timeline[]>;
+  commit(t:Timeline):Promise<void>;
 }
 type Actions="create"|"upload"|"download"|"get_head"|"set_head";
 type StringifiedObject={ hash: Hash; content: string, mtime?:PHPTimestamp };
